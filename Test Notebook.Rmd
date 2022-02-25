@@ -82,3 +82,4 @@ HC_Hotel$X[NAs]
 
 ```
 
+This is a test if this line is here the request was correct. 
