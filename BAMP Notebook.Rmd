@@ -9,6 +9,8 @@ library(tidyr)
 install.packages("gridExtra")
 library(gridExtra)
 library(readr)
+install.packages("fasttime")
+library(fasttime)
 ```
 
 To test different approaches we start with a combination of datasets that combrise the energy consumption of the "Waldhotel Wiesman" from the year 2019 and the heating and occupancy data from the "Best Western Premium Schwarzwald 1. Halbjahr 2019". 
@@ -23,10 +25,12 @@ bw_heating_occupancy <- Best.Western.Premium.Schwarzwald.1..Halbjahr.2019.Zusamm
 bw_heating <- filter(bw_heating_occupancy, KPI == c("T","Td","Val"))
 bw_occupancy <- filter(bw_heating_occupancy, KPI == "Occ")
 
+
 ## Specify the Data Type for Heatig correctly:
 bw_heating$Value <- as.numeric(bw_heating$Value)
-bw_heating$Zeit <- gsub("T", " ", bw_heating$Zeit)
-bw_heating$Zeit <- as.POSIXlt(bw_heating$Zeit, format= "%Y-%m-%d %H:%M")
+#bw_heating$Zeit <- gsub("T", " ", bw_heating$Zeit) #-> not required for fastPOSIXct
+bw_heating$Zeit <- fastPOSIXct(bw_heating$Zeit, required.components = 5L)
+#bw_heating$Zeit <- as.POSIXlt(bw_heating$Zeit, format= "%Y-%m-%d %H:%M") #-> replaces by fastPOSIXct
 bw_heating$idk <- as.factor(bw_heating$idk)
 bw_heating$Room <- as.factor(bw_heating$Room)
 bw_heating$RoomType <- as.factor(bw_heating$RoomType)
