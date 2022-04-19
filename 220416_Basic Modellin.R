@@ -138,12 +138,62 @@ plot(merged$Verbraucher, merged$Val)
 
 #
 
+###Aggregation
+
+library(dplyr)
+
+bw_heating2 <- bw_heating
+
+#Subset for performance
+bw_heating2_sample <- bw_heating2[500000:600000,]
+#bw_heating2_sample2 <- bw_heating2[sample(nrow(bw_heating2), size = 100000),]
+
+i = 0
+for (i in 1:nrow(bw_heating2_sample)){
+  ifelse(bw_heating2_sample$RoomType[i] == "Occ", bw_heating2_sample$KPI2[i] <- bw_heating2_sample$RoomType[i], bw_heating2_sample$KPI2[i] <- bw_heating2_sample$KPI[i])
+}
+
+summary(as.factor(bw_heating2_sample$RoomType))
+i = 0
+for (i in 1:nrow(bw_heating2_sample)){
+  ifelse(bw_heating2_sample$RoomType[i] == "Occ", bw_heating2_sample$RoomType[i] <- "Wohn", bw_heating2_sample$RoomType[i] <- bw_heating2_sample$RoomType[i])
+}
+
+bw_heating2_sample$KPI <- NULL
+bw_heating2_sample_spread <- spread(bw_heating2_sample, key = KPI2, value = Value)
+
+bw_heating2_sample_spread$Date <- fastDate(substr(bw_heating2_sample_spread$Zeit, 0, 10))
+
+summary(bw_heating2_sample_spread)
+bw_heating2_sample_spread$idk <- as.factor(bw_heating2_sample_spread$idk)
+bw_heating2_sample_spread$Room <- as.factor(bw_heating2_sample_spread$Room)
+bw_heating2_sample_spread$RoomType <- as.factor(bw_heating2_sample_spread$RoomType)
+bw_heating2_sample_spread$Occ <- as.factor(bw_heating2_sample_spread$Occ)
+bw_heating2_sample_spread$Win <- as.factor(bw_heating2_sample_spread$Win)
+bw_heating2_sample_spread$T <- as.numeric(bw_heating2_sample_spread$T)
+bw_heating2_sample_spread$Td <- as.numeric(bw_heating2_sample_spread$Td)
+bw_heating2_sample_spread$Val <- as.numeric(bw_heating2_sample_spread$Val)
+summary(bw_heating2_sample_spread)
+
+bw_heating2_sample_spread <- na.omit(bw_heating2_sample_spread)
+
+#Come up with idea to summarise Win and Occ? Majority?
+bw_heating2_sample_spread_agg <- bw_heating2_sample_spread %>%
+  group_by(Date, Room) %>%
+  summarise(
+    T_mean = mean(T, na.rm = TRUE),
+    Td_mean = mean(Td, na.rm = TRUE),
+    Val_mean= mean(Val, na.rm = TRUE)
+  ) %>%
+  as.data.frame()
 
 
-#####
+
+## Time Series
+#summary(merged_ts)
+merged_ts <- merged[,c(22,6)]
+merged_ts <- ts(merged_ts, start = c(2019,2,14))
 
 
-#bw_heating_spread <- spread(bw_heating, key = KPI, value = Value)
-#write.csv(bw_heating_spread, "C:/Users/chris/Desktop/data.csv")
-
+plot.ts(merged_ts)
 
