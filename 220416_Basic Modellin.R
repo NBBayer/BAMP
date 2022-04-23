@@ -96,10 +96,10 @@ merged[merged$weekday == "Montag" | merged$weekday ==  "Dienstag" | merged$weekd
 merged$weekend <- as.factor(merged$weekend)
 
 write.csv(merged, "C:/Users/chris/Desktop/merged.csv")
-
 summary(merged)
 
 merged <- na.omit(merged)
+
 
 #add. lin. models
 
