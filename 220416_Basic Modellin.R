@@ -26,6 +26,7 @@ bw_heating <- bw_heating[!(is.na(bw_heating$Value)),]
 bw_heating_sample <- bw_heating[500000:600000,]
 
 #Correct mistake from merge-file: Occupancy in wrong column
+i = 0
 for (i in 1:nrow(bw_heating_sample)){
   ifelse(bw_heating_sample$RoomType[i] == "Occ", bw_heating_sample$KPI2[i] <- bw_heating_sample$RoomType[i], bw_heating_sample$KPI2[i] <- bw_heating_sample$KPI[i])
 }
@@ -34,19 +35,14 @@ for (i in 1:nrow(bw_heating_sample)){
 bw_heating_sample <- bw_heating_sample %>% select(-KPI)
 
 ## Specify the Data Type for Heatig correctly:
-#bw_heating_sample$Value <- as.numeric(bw_heating_sample$Value)
 bw_heating_sample$Zeit <- fastPOSIXct(bw_heating_sample$Zeit, required.components = 5L)
-#bw_heating_sample$idk <- as.factor(bw_heating_sample$idk)
-#bw_heating_sample$Room <- as.factor(bw_heating_sample$Room)
-#bw_heating_sample$RoomType <- as.factor(bw_heating_sample$RoomType)
-#bw_heating_sample$KPI2 <- as.factor(bw_heating_sample$KPI2)
-#summary(bw_heating_sample)
 
 #Remove NAs
 #bw_heating_sample <- na.omit(bw_heating_sample)
 
 #Exchange RoomType Occ with Wohn (works only since there are no other room types in df)
 summary(as.factor(bw_heating_sample$RoomType))
+i = 0
 for (i in 1:nrow(bw_heating_sample)){
   ifelse(bw_heating_sample$RoomType[i] == "Occ", bw_heating_sample$RoomType[i] <- "Wohn", bw_heating_sample$RoomType[i] <- bw_heating_sample$RoomType[i])
 }
@@ -99,6 +95,7 @@ merged[merged$weekday == "Montag" | merged$weekday ==  "Dienstag" | merged$weekd
   
 merged$weekend <- as.factor(merged$weekend)
 
+write.csv(merged, "C:/Users/chris/Desktop/merged.csv")
 
 #add. lin. models
 
@@ -185,15 +182,20 @@ bw_heating2_sample_spread_agg <- bw_heating2_sample_spread %>%
   ) %>%
   as.data.frame()
 
+summary(bw_heating2_sample_spread_agg)
 
+write.csv(bw_heating2_sample_spread_agg, "C:/Users/chris/Desktop/bw_heating2_sample_spread_agg.csv")
 
 ## Time Series
 #summary(merged_ts)
-merged_ts <- merged[,c(22,6)]
-merged_ts <- ts(merged_ts, start = c(2019,2,14))
+merged_ts <- subset(bw_heating2_sample_spread_agg, Room == "Zi05")
+#merged_ts$Date <- fastPOSIXct(merged_ts$Date, required.components = 3L)
+head(merged_ts, 10)
+merged_ts <- merged_ts[,c(1,3)]
+merged_ts <- ts(merged_ts, frequency = 365, start = c(2019,1,1))
 
 
 plot.ts(merged_ts)
 
-#Test
+
 
