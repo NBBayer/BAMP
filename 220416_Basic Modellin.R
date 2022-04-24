@@ -10,6 +10,7 @@ library(fasttime)
 #install.packages("lubridate")
 library(lubridate)
 library(ggplot2)
+library(dplyr)
 
 bw_heating <- Best.Western.Premium.Schwarzwald.1..Halbjahr.2019.Zusammenfassung
 
@@ -47,6 +48,8 @@ for (i in 1:nrow(bw_heating_sample)){
   ifelse(bw_heating_sample$RoomType[i] == "Occ", bw_heating_sample$RoomType[i] <- "Wohn", bw_heating_sample$RoomType[i] <- bw_heating_sample$RoomType[i])
 }
 
+write.csv(bw_heating_sample, "C:/Users/chris/Desktop/bw_heating_sample.csv")
+
 #Long to wide format
 bw_heating_sample_spread <- spread(bw_heating_sample, key = KPI2, value = Value)
 
@@ -71,7 +74,7 @@ merged <- merge(bw_heating_sample_spread, IWT, by = "Zeit")
 names(merged)[names(merged)=="T"] <- "ActT"
 summary(merged)
 
-#linear model (basic)
+###linear model (basic)
 
 lm1 <- lm(Verbraucher ~ Occ, data = merged)
 summary(lm1)
@@ -121,17 +124,27 @@ plot(merged$Verbraucher, merged$Val)
 
 
 
-#Polynomial Regression Models
+###Polynomial Regression Models
 
 merged <- na.omit(merged)
 
+poly_1 <- lm(Verbraucher ~ poly(as.numeric(TempDelta), 1), data = merged)
 poly_3 <- lm(Verbraucher ~ poly(as.numeric(TempDelta), 3), data = merged)
-summary(poly_3)
+poly_5 <- lm(Verbraucher ~ poly(as.numeric(TempDelta), 5), data = merged)
+poly_7 <- lm(Verbraucher ~ poly(as.numeric(TempDelta), 7), data = merged)
+summary(poly_5)
 #plot(poly_3)
 ggplot(merged) + 
   geom_point(aes(Verbraucher, TempDelta, col = "Original")) +
-  stat_smooth(method = "lm", formula = y~poly(x,3), aes(TempDelta, poly_3$fitted.values, col = "Order 3"))
+  stat_smooth(method = "lm", formula = y~poly(x,1), aes(TempDelta, poly_1$fitted.values, col = "Order 1")) +
+  stat_smooth(method = "lm", formula = y~poly(x,3), aes(TempDelta, poly_3$fitted.values, col = "Order 3")) +
+  stat_smooth(method = "lm", formula = y~poly(x,5), aes(TempDelta, poly_5$fitted.values, col = "Order 5")) +
+  stat_smooth(method = "lm", formula = y~poly(x,7), aes(TempDelta, poly_7$fitted.values, col = "Order 7"))
 
+
+#When having a test and a training set, model can be run with test data. Then RSS
+#can be calculated for each degree and optimal no. of degrees can be derived.
+#See pdf on polynomial functions for Code
 
 ###
 
@@ -142,12 +155,54 @@ plot(merged$Verbraucher, merged$weekend)
 plot(merged$Verbraucher, merged$TempDelta)
 plot(merged$Verbraucher, merged$Val)
 
-
 #
 
-###Aggregation
+### Data preparation for Lasso / Ridge Regression
 
-library(dplyr)
+summary(bw_heating_sample_spread)
+head(bw_heating_sample_spread)
+
+bw_heating_sample_spread <- na.omit(bw_heating_sample_spread)
+
+#Long to wide for KPI and Rooms
+bw_heating_sample_spread_lasso <- reshape(data = bw_heating_sample_spread,
+                                          v.names = c("Occ", "T", "Td", "Val", "Win"),
+                                          timevar = "Room",
+                                          idvar = c("Zeit", "idk", "RoomType"),
+                                          direction = "wide")
+
+#na.omit deletes a lot of rows -> only because of sample data, since there are more
+#observations for Zi05 than Zi04 (based on sample selection)
+bw_heating_sample_spread_lasso <- na.omit(bw_heating_sample_spread_lasso)
+head(bw_heating_sample_spread_lasso)
+
+#Data preparation IWT table
+IWT$Zeit <- fastPOSIXct(IWT$X, required.components = 5L)
+
+#Merge with IWT
+merged_lasso <- merge(bw_heating_sample_spread_lasso, IWT, by = "Zeit")
+names(merged_lasso)[names(merged_lasso)=="T"] <- "ActT"
+summary(merged_lasso)
+
+#Lasso
+#Merged using Datetime, not required onwards (only used as key)
+y <- merged_lasso$Verbraucher
+x <- data.matrix(merged_lasso[, c(4:13)])
+
+library(glmnet)
+cv_model <- cv.glmnet(x, y, alpha = 1)
+best_lambda <-cv_model$lambda.min
+#best_lambda
+
+plot(cv_model)
+
+lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(lasso_model)
+
+#If test data available, R-squared could be calculated.
+
+
+###Aggregation
 
 bw_heating2 <- bw_heating
 
