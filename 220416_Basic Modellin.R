@@ -40,6 +40,7 @@ for (i in 1:length(list)){
 ### NB: Discussion if the Import might be also be done automaticaly??
 
 #Merge the Heating Data from the Sharepoint File
+#I will continue working on this part 
 
 =======
 library(dplyr)
