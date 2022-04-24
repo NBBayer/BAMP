@@ -10,6 +10,36 @@ library(fasttime)
 #install.packages("lubridate")
 library(lubridate)
 library(ggplot2)
+#install.packages("Microsoft365R")
+library(Microsoft365R)
+library(AzureAuth)
+library(AzureGraph)
+
+#Retrieving all the CSV data from Sharepoint:
+# Set the site and retrieve the link names
+site <- get_sharepoint_site(site_url = "https://mssdconcept.sharepoint.com/sites/TeamMannheimBusinessSchool")
+url <- "General/04_Data & Analysis/01_Data/Test Hotel/"
+drv <- site$get_drive()
+links <- drv$list_items(url)
+links <- links$name
+
+# Create the correct path by adding the link names to the original path
+list = c()
+for (i in links){
+  d =paste(url,i, sep ="")
+  list = c(list,d)}
+list <- list[grepl("csv", list)]
+list
+
+# Bulk download all the files from the Folder 
+for (i in 1:length(list)){
+  drv$download_file(list[i])
+}
+
+### NB: Discussion if the Import might be also be done automaticaly??
+
+#Merge the Heating Data from the Sharepoint File
+
 
 bw_heating <- Best.Western.Premium.Schwarzwald.1..Halbjahr.2019.Zusammenfassung
 
