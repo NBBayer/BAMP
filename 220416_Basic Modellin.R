@@ -32,6 +32,8 @@ for (i in links){
 list <- list[grepl("csv", list)]
 list
 
+##Dies ist ein Test 
+
 # Bulk download all the files from the Folder 
 for (i in 1:length(list)){
   drv$download_file(list[i])
