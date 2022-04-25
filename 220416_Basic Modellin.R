@@ -43,6 +43,7 @@ for (i in 1:length(list)){
 #Merge the Heating Data from the Sharepoint File
 #I will continue working on this part 
 
+############################ Christians Area ##########################
 =======
 library(dplyr)
 >>>>>>> dfeba28f4f02dea286c38c37b17378b4cdfdcabc
@@ -299,5 +300,16 @@ merged_ts <- ts(merged_ts, frequency = 365, start = c(2019,1,1))
 
 plot.ts(merged_ts)
 
+############################ Christians Area ##########################
+
+############################ Fabians Area #############################
 
 
+
+############################ Fabian Area ###############################
+
+############################ Niclas Area ###############################
+
+
+
+############################ Niclas Area ###############################
