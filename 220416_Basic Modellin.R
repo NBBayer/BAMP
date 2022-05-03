@@ -15,30 +15,72 @@ library(ggplot2)
 library(Microsoft365R)
 library(AzureAuth)
 library(AzureGraph)
+#install.packages("data.table")
+library(data.table)
+#install.packages("purrr")                           
+library(purrr)
+#install.packages("plyr")
+#install.packeges("readr")
+library(plyr)
+library(readr)
 
-#Retrieving all the CSV data from Sharepoint:
-# Set the site and retrieve the link names
+#### Set the site details and the Hotel URL #####
 site <- get_sharepoint_site(site_url = "https://mssdconcept.sharepoint.com/sites/TeamMannheimBusinessSchool")
-url <- "General/04_Data & Analysis/01_Data/Test Hotel/"
 drv <- site$get_drive()
-links <- drv$list_items(url)
-links <- links$name
+url <- "General/04_Data & Analysis/01_Data/Hotel am Kurpark_2981/"
 
+#### IWT Data Retrieving & Merging ####
 # Create the correct path by adding the link names to the original path
+IWT_URL <- paste(url, "IWT/", sep = "")
+IWT_Data <- drv$list_items(IWT_URL)
+IWT_Data <- IWT_Data$name
+
 list = c()
-for (i in links){
-  d =paste(url,i, sep ="")
+for (i in IWT_Data){
+  d =paste(IWT_URL,i, sep ="")
   list = c(list,d)}
 list <- list[grepl("csv", list)]
 list
 
-
-# Bulk download all the files from the Folder 
-for (i in 1:length(list)){
+# Bulk download all the IWT files from the Folder 
+for (i in 1:length(IWT_Data)){
   drv$download_file(list[i])
 }
 
-### NB: Discussion if the Import might be also be done automaticaly??
+# Merge the single CSV Files into one CSV File
+IWT_join_data <- list.files(pattern = "*IWT", full.names = TRUE) %>% 
+  lapply(read.csv2) %>%                              # Store all files in list
+  reduce(full_join, by = "Zeit")
+
+write.csv2(IWT_join_data, file = "IWT_Join_Data.csv")
+
+#### TFX Data Retrieving & Merging ####
+TFX_URL <- paste(url, "TFX/", sep = "")
+TFX_Data <- drv$list_items(TFX_URL)
+TFX_Data <- TFX_Data$name
+
+list = c()
+for (i in TFX_Data){
+  d =paste(TFX_URL,i, sep ="")
+  list = c(list,d)}
+list <- list[grepl("csv", list)]
+list
+
+# Bulk download all the IWT files from the Folder 
+for (i in 1:length(TFX_Data)){
+  drv$download_file(list[i])
+}
+
+# Merge the single CSV Files into one CSV File
+TFX_join_data <- list.files(pattern = "*TFX", full.names = TRUE) %>% 
+  lapply(read.csv2) %>%                              # Store all files in list
+  reduce(full_join, by = "Zeit")
+
+write.csv2(TFX_join_data, file = "TFX_Join_Data.csv")
+
+#### Heating Data Retrieving & Merging ####
+
+
 
 #Merge the Heating Data from the Sharepoint File
 #I will continue working on this part 
