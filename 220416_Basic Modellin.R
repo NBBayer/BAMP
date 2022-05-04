@@ -1,8 +1,8 @@
-summary(IWT_sample)
-summary(TFX_sample)
+#summary(IWT_sample)
+#summary(TFX_sample)
 
-summary(IWT)
-summary(Best.Western.Premium.Schwarzwald.1..Halbjahr.2019.Zusammenfassung)
+#summary(IWT)
+#summary(Best.Western.Premium.Schwarzwald.1..Halbjahr.2019.Zusammenfassung)
 
 library(tidyr)
 library(dplyr)
@@ -10,7 +10,6 @@ library(fasttime)
 #install.packages("lubridate")
 library(lubridate)
 library(ggplot2)
-<<<<<<< HEAD
 #install.packages("Microsoft365R")
 library(Microsoft365R)
 library(AzureAuth)
@@ -44,9 +43,80 @@ for (i in 1:length(list)){
 #I will continue working on this part 
 
 ############################ Christians Area ##########################
-=======
+
+## Merge Code ##
+
+library(tidyverse)
+#install.packages("here")
+library(here)
 library(dplyr)
->>>>>>> dfeba28f4f02dea286c38c37b17378b4cdfdcabc
+library(dbplyr)
+library(tidyverse)
+library(tidyr)
+#install.packages("stringr")
+library("stringr")
+
+#import all files from working directory -> IMPORTANT TO SET WORKING DIRECTORY
+
+getwd()
+setwd("C:/Users/chris/Documents/Master/00_BAMP/Energy Daten Hotel Marburger Hof/Testdata")
+getwd()
+
+data_frame_names <- list.files(pattern = "*.csv")       # Get all file names
+data_frame_names 
+data_frame_list <- lapply(data_frame_names, read.csv2)  # Read all data frames
+#data_frame_list #uncomment to see all files (takes a long time!)
+
+#length(data_frame_list)
+
+#data_frame_list[1]
+
+dfcs <- data.frame()
+
+#for loop transforms each file so there is one column with time stamp
+# (existing), one with the measured KPI and one with the measured value
+# All are saved in one data frame with this structure of three columns
+i= 1
+for (i in 1:length(data_frame_list)){
+  
+  var <- pivot_longer(as.data.frame(data_frame_list[i]) %>%
+                        mutate(across(c(!"Zeit"), as.character)), cols = c(!"Zeit"), 
+                      names_to = "Descr", values_to = "Value")
+  
+  dfcs <- rbind(dfcs, var)
+  
+}
+
+#Exchange all occurences of .occ with .all.occ to prevent mismatch of columns 
+#when separatig
+dfcs$Descr <- str_replace_all(dfcs$Descr, ".Occ", ".all.Occ")
+
+# separate ex-columntitles so different information is available in 
+# several columns (i.e. room, roomType, ...)
+dfcs <- dfcs %>% 
+  separate(Descr, c("HotelID", "Room", "RoomType", "KPI"))
+
+#head(dfcs)
+
+#Split Occ from rest, since this is independent of room Type
+dfcs_occ <- dfcs[dfcs$KPI == "Occ",]
+dfcs_heat <- dfcs[dfcs$KPI != "Occ",]
+
+#Long to wide Format for each df
+dfcs_heat_wide2 <- spread(dfcs_heat, key = "KPI", value = "Value")
+dfcs_occ_wide2 <- spread(dfcs_occ, key = "KPI", value = "Value")
+
+
+#saving as csv --> CHANGE PATH anf FILE NAME!!!
+write.table(dfcs_heat_wide2, "C:/Users/chris/Documents/Master/00_BAMP/Energy Daten Hotel Marburger Hof/heatingdata.txt")
+write.table(dfcs_occ_wide2, "C:/Users/chris/Documents/Master/00_BAMP/Energy Daten Hotel Marburger Hof/occdata.txt")
+#summary(dfcs)
+
+
+## Merge Code ##
+
+
+library(dplyr)
 
 bw_heating <- Best.Western.Premium.Schwarzwald.1..Halbjahr.2019.Zusammenfassung
 
