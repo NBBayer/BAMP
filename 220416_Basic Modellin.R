@@ -16,6 +16,8 @@ library(AzureAuth)
 library(AzureGraph)
 
 #Retrieving all the CSV data from Sharepoint:
+#Clean Token:
+AzureAuth::clean_token_directory()
 # Set the site and retrieve the link names
 site <- get_sharepoint_site(site_url = "https://mssdconcept.sharepoint.com/sites/TeamMannheimBusinessSchool")
 url <- "General/04_Data & Analysis/01_Data/Test Hotel/"
@@ -180,14 +182,6 @@ merged <- merge(bw_heating_sample_spread, IWT, by = "Zeit")
 names(merged)[names(merged)=="T"] <- "ActT"
 summary(merged)
 
-###linear model (basic)
-
-lm1 <- lm(Verbraucher ~ Occ, data = merged)
-summary(lm1)
-
-lm2 <- lm(Verbraucher ~ Occ + ActT + Td + Val + Win + Room, data = merged)
-summary(lm2)
-
 #enhance dataset
 
 merged$TempDelta <- merged$ActT - merged$Td
@@ -201,7 +195,7 @@ merged$weekday <- as.factor(weekdays(merged$Date))
 merged[merged$weekday == "Samstag" | merged$weekday ==  "Sonntag", "weekend"] <- 1
 merged[merged$weekday == "Montag" | merged$weekday ==  "Dienstag" | merged$weekday ==  "Mittwoch" | 
          merged$weekday ==  "Donnerstag" | merged$weekday ==  "Freitag", "weekend"] <- 0
-  
+
 merged$weekend <- as.factor(merged$weekend)
 
 write.csv(merged, "C:/Users/chris/Desktop/merged.csv")
@@ -209,6 +203,49 @@ summary(merged)
 
 merged <- na.omit(merged)
 
+#Merge Hating+IWT with TXF data > key = timestamp
+
+#Only necessary if format of merged not correct
+merged$idk <- as.factor(merged$idk)
+merged$Room <- as.factor(merged$Room)
+merged$RoomType <- as.factor(merged$RoomType)
+merged$Occ <- as.factor(merged$Occ)
+merged$Win <- as.factor(merged$Win)
+merged$ActT <- as.numeric(merged$ActT)
+merged$Td <- as.numeric(merged$Td)
+merged$Val <- as.numeric(merged$Val)
+merged$Zeit <- fastPOSIXct(merged$Zeit, required.components = 5L)
+
+TFX$Zeit <- fastPOSIXct(TFX$X, required.components = 5L)
+merged2 <- merge(merged, TFX, by = "Zeit")
+summary(merged2)
+
+#Rename columns merged 2:
+names(merged2)[names(merged2)=="X.x"] <- "X.IWT"
+names(merged2)[names(merged2)=="Erzeuger.x"] <- "Erzeuger.IWT"
+names(merged2)[names(merged2)=="Friteuse"] <- "Friteuse.IWT"
+names(merged2)[names(merged2)=="Kaffeemaschine"] <- "Kaffeemaschine.IWT"
+names(merged2)[names(merged2)=="Netz"] <- "Netz.IWT"
+names(merged2)[names(merged2)=="Sauna"] <- "Sauna.IWT"
+names(merged2)[names(merged2)=="Schwimmbad.x"] <- "Schwimmbad.IWT"
+names(merged2)[names(merged2)=="Verbraucher.x"] <- "Verbraucher.IWT"
+names(merged2)[names(merged2)=="Gesamt.x"] <- "Gesamt.IWT"
+names(merged2)[names(merged2)=="Gesamt.y"] <- "Gesamt.TFX"
+names(merged2)[names(merged2)=="Erzeuger.y"] <- "Erzeuger.TFX"
+names(merged2)[names(merged2)=="Schwimmbad.y"] <- "Schwimmbad.TFX"
+names(merged2)[names(merged2)=="Verbraucher.y"] <- "Verbraucher.TFX"
+names(merged2)[names(merged2)=="Hotel"] <- "Hotel.TFX"
+names(merged2)[names(merged2)=="Apartmenthaus"] <- "Apartmenthaus.TFX"
+
+write.csv(merged2, "C:/Users/chris/Desktop/merged2.csv")
+
+###linear model (basic)
+
+lm1 <- lm(Verbraucher.TFX ~ Occ, data = merged2)
+summary(lm1)
+
+lm2 <- lm(Verbraucher.TFX ~ Occ + ActT + Td + Val + Win + Room, data = merged2)
+summary(lm2)
 
 #add. lin. models
 
