@@ -387,6 +387,7 @@ dfcs_room <- dfcs[dfcs$RoomType == "all",]
 dfcs_roomtype <- dfcs[dfcs$RoomType != "all",]
 dfcs_roomtype <- dfcs_roomtype[dfcs_roomtype$RoomType != "Build",]
 
+#Prepara each subset individually -> long to wide
 dfcs_building <- subset(dfcs_building, select = -c(Occ, T, Td, Val, Win, Room, RoomType))
 names(dfcs_building) <- c("Zeit", "HotelID", "ClIn.all.Build", "Text.all.Build")
 
@@ -406,6 +407,7 @@ dfcs_roomtype_wide <- reshape(data = dfcs_roomtype,
                               idvar = c("Zeit", "HotelID"),
                               direction = "wide")
 
+#merge wide subsets to entire data set, based on timestamp
 dfcshelp1 <- merge(dfcs_building, dfcs_room_wide, by = "Zeit")
 dfcshelp1 <- subset(dfcshelp1, select = -c(HotelID.y))
 
@@ -415,7 +417,41 @@ summary(heating_widemax)
 
 write.csv(heating_widemax, "C:/Users/chris/Desktop/heating_widemax.csv")
 
+#merge with TFX_all data
+
+TFX_all <- TFX_all_1
+
+TFX_all <- subset(TFX_all, select = c(X, Kessel.1.2.Leistung, BHKW.1.4.Leistung))
+names(TFX_all) <- c("Zeit", "Kessel_Leistung", "BHKW_Leistung")
+TFX_all$Zeit <- fastPOSIXct(TFX_all$Zeit, required.components = 5L)
+summary(TFX_all)
+heating_widemax$Zeit <- fastPOSIXct(heating_widemax$Zeit, required.components = 5L)
+#heating_widemax_TFX <- merge(heating_widemax, TFX_all, by = "Zeit", all.x = TRUE)
+#heating_widemax_TFX <- NULL
+
+
+#Legt join keeps all rows from heating --> many NAs since dates don't overlap entirely
+heating_widemax_TFX <- heating_widemax %>% left_join(TFX_all, by = "Zeit")
+
+heating_widemax_TFX <- heating_widemax_TFX %>% drop_na(Kessel_Leistung)
+summary(heating_widemax_TFX$BHKW_Leistung)
+
+write.csv(heating_widemax_TFX, "C:/Users/chris/Desktop/heating_widemax_TFX.csv")
+
+summary(TFX_all$Zeit)
+summary(heating_widemax$Zeit)
+
 ###### Data prep 17/05/2022 #######
+
+summary(heating_widemax_TFX)
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Kessel_Leistung)) +
+         geom_line()
+
+heating_widemax_TFX$Gesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
+heating_widemax_TFX <- subset(heating_widemax_TFX, select = -c(Kessel_Leistung, BHKW_Leistung))
+
+
+
 
 ############################ Christians Area ##########################
 
