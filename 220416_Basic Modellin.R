@@ -370,6 +370,53 @@ merged_ts <- ts(merged_ts, frequency = 365, start = c(2019,1,1))
 
 plot.ts(merged_ts)
 
+###### Data prep 17/05/2022 #######
+
+dfcs <- Heating_all_0120
+summary(dfcs)
+
+dfcs$Room <- as.factor(dfcs$Room)
+dfcs$RoomType <- as.factor(dfcs$RoomType)
+dfcs$Occ <- as.factor(dfcs$Occ)
+dfcs$Win <- as.factor(dfcs$Win)
+
+#Creating subsets for each level of information
+
+dfcs_building <- dfcs[dfcs$RoomType == "Build",]
+dfcs_room <- dfcs[dfcs$RoomType == "all",]
+dfcs_roomtype <- dfcs[dfcs$RoomType != "all",]
+dfcs_roomtype <- dfcs_roomtype[dfcs_roomtype$RoomType != "Build",]
+
+dfcs_building <- subset(dfcs_building, select = -c(Occ, T, Td, Val, Win, Room, RoomType))
+names(dfcs_building) <- c("Zeit", "HotelID", "ClIn.all.Build", "Text.all.Build")
+
+
+dfcs_room <- subset(dfcs_room, select = -c(T, Td, Val, Win, Text, ClIn))
+dfcs_room$keylw <- paste("Occ", dfcs_room$Room, dfcs_room$RoomType, sep = ".")
+dfcs_room <- subset(dfcs_room, select = -c(Room, RoomType))
+dfcs_room_wide <- spread(dfcs_room, key = "keylw", value = "Occ")
+
+
+dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Occ, Text, ClIn))
+dfcs_roomtype$keylw <- paste(dfcs_roomtype$Room, dfcs_roomtype$RoomType, sep = ".")
+dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Room, RoomType))
+dfcs_roomtype_wide <- reshape(data = dfcs_roomtype, 
+                              v.names = c("T", "Td", "Val", "Win"),
+                              timevar = "keylw",
+                              idvar = c("Zeit", "HotelID"),
+                              direction = "wide")
+
+dfcshelp1 <- merge(dfcs_building, dfcs_room_wide, by = "Zeit")
+dfcshelp1 <- subset(dfcshelp1, select = -c(HotelID.y))
+
+heating_widemax <- merge(dfcshelp1, dfcs_roomtype_wide, by = "Zeit")
+heating_widemax <- subset(heating_widemax, select = -c(HotelID))
+summary(heating_widemax)
+
+write.csv(heating_widemax, "C:/Users/chris/Desktop/heating_widemax.csv")
+
+###### Data prep 17/05/2022 #######
+
 ############################ Christians Area ##########################
 
 ############################ Fabians Area #############################
