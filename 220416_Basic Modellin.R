@@ -44,7 +44,7 @@ for (i in 1:length(list)){
 
 ############################ Christians Area ##########################
 
-## Merge Code ##
+####### Merge Code #######
 
 library(tidyverse)
 #install.packages("here")
@@ -113,7 +113,7 @@ write.table(dfcs_occ_wide2, "C:/Users/chris/Documents/Master/00_BAMP/Energy Date
 #summary(dfcs)
 
 
-## Merge Code ##
+###### End of Merge Code ######
 
 
 library(dplyr)
@@ -441,14 +441,50 @@ write.csv(heating_widemax_TFX, "C:/Users/chris/Desktop/heating_widemax_TFX.csv")
 summary(TFX_all$Zeit)
 summary(heating_widemax$Zeit)
 
-###### Data prep 17/05/2022 #######
+###### End of Data prep 17/05/2022 #######
 
+##### Moddeling with heating_widemax_TFX-dataset #####
 summary(heating_widemax_TFX)
+heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
 ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Kessel_Leistung)) +
          geom_line()
 
 heating_widemax_TFX$Gesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
 heating_widemax_TFX <- subset(heating_widemax_TFX, select = -c(Kessel_Leistung, BHKW_Leistung))
+
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Gesamt)) +
+        geom_line()
+plot(heating_widemax_TFX$Gesamt)
+
+#subset only containing occupancy data
+df1 <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
+df1[] <- lapply(df1, as.factor)
+
+df1 <- cbind(df1, heating_widemax_TFX$Gesamt)
+df1$Occ.TGVogelsberg.all <- NULL
+df1$Occ.TGRhoenI.all <- NULL
+df1$Occ.TGRhoenIII.all <- NULL
+df1$Occ.Zi18.all <- NULL
+df1$Occ.Zi9A.all <- NULL
+summary(df1)
+
+lm1 <- lm(heating_widemax_TFX$Gesamt ~ ., data = df1)
+summary(lm1)
+
+
+#Lasso
+y <- df1$`heating_widemax_TFX$Gesamt`
+x <- data.matrix(df1[, c(2:36)])
+
+library(glmnet)
+cv_model <- cv.glmnet(x, y, alpha = 1)
+best_lambda <-cv_model$lambda.min
+#best_lambda
+
+plot(cv_model)
+
+lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(lasso_model)
 
 
 
