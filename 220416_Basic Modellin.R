@@ -460,6 +460,71 @@ plot(heating_widemax_TFX$Gesamt)
 df1 <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
 df1[] <- lapply(df1, as.factor)
 
+
+
+#remove "general" rooms since they are assumed to have to influence in change in temp
+# -> basis that never changes
+# remove columns with nas --> IDEA: can this be done automatically
+
+df1$Occ.TGRhoenI.all <- NULL
+df1$Occ.TGRhoenII.all <-  NULL
+df1$Occ.TGRhoenIII.all <- NULL
+df1$Occ.TGVogelsberg.all <- NULL
+df1$Occ.Zi18.all <- NULL
+df1$Occ.Zi9A.all <- NULL
+df1$Occ.TGVogelsberg.all <- NULL
+
+#subtract 1 from each value in df1 since true = 2 and false = 1
+df1[] <- lapply(df1, as.integer)
+subtract1 <- function(x){
+  return(x-1)
+}
+df1[] <- lapply(df1, subtract1)
+df1 <- cbind(df1, heating_widemax_TFX$Zeit)
+summary(df1)
+
+summary(df1)
+
+#sum(df1$Occ.Zi1.all)/length(df1$Occ.Zi1.all)-1
+
+
+df1$AuslastungSum <- rowSums(df1[,0:35])
+ggplot(data = df1, aes(x = heating_widemax_TFX$Zeit, y = AuslastungSum)) +
+  geom_line()
+
+#Quote
+df1$Auslastungsquote <- df1$AuslastungSum/35
+ggplot(data = df1, aes(x = heating_widemax_TFX$Zeit, y = Auslastungsquote)) +
+  geom_line()
+
+df1$Date <- fastDate(substr(df1$`heating_widemax_TFX$Zeit`, 0, 10))
+df1$weekday <- as.factor(weekdays(df1$Date))
+df1[df1$weekday == "Samstag" | df1$weekday ==  "Sonntag", "weekend"] <- 1
+df1[df1$weekday == "Montag" | df1$weekday ==  "Dienstag" | df1$weekday ==  "Mittwoch" | 
+      df1$weekday ==  "Donnerstag" | df1$weekday ==  "Freitag", "weekend"] <- 0
+
+df1$weekend <- as.integer(df1$weekend)
+cor(df1$Auslastungsquote, df1$weekend)
+
+#BarChart with mean Auslastungsquote per Weekday
+meanAuslastungsquote <- aggregate(df1$Auslastungsquote, list(df1$weekday), mean)
+ggplot(meanAuslastungsquote, aes(Group.1, x)) +
+  geom_bar(stat = "identity")
+
+
+
+#Boxplot with mean Auslastungsquote per Weekday
+ggplot(df1, aes(x = factor(weekday), y = Auslastungsquote)) + 
+  geom_boxplot()
+
+
+
+
+
+#subset only containing occupancy data
+df1 <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
+df1[] <- lapply(df1, as.factor)
+
 df1 <- cbind(df1, heating_widemax_TFX$Gesamt)
 df1$Occ.TGVogelsberg.all <- NULL
 df1$Occ.TGRhoenI.all <- NULL
