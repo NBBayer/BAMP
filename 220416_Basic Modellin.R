@@ -443,6 +443,75 @@ summary(heating_widemax$Zeit)
 
 ###### End of Data prep 17/05/2022 #######
 
+###### Data Exploration "raw" heating data ######
+
+heating_data <- Heating_all_0120
+summary(heating_data)
+
+heating_data$ClIn <- NULL
+heating_data$Text <- NULL
+
+heating_data_rooms <- subset(heating_data, grepl("Zi", heating_data$Room))
+heating_data_rooms$Occ <- NULL
+#summary(heating_data_rooms)
+heating_data_rooms$Room <- as.factor(heating_data_rooms$Room)
+heating_data_rooms$RoomType <- as.factor(heating_data_rooms$RoomType)
+heating_data_rooms$Zeit <- fastPOSIXct(heating_data_rooms$Zeit, required.components = 5L)
+heating_data_rooms$Win <- as.factor(heating_data_rooms$Win)
+
+#remove all N/A's (entire rows!)
+heating_data_rooms <- na.omit(heating_data_rooms)
+summary(heating_data_rooms)
+
+ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
+  geom_point()
+
+#Plot mean Temperature over all rooms per point in time
+ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
+  stat_summary(aes(y = T), fun = "mean", geom = "line", colour = "red") +
+  stat_summary(aes(y=Td), fun = "mean", geom = "line", colour = "blue")
+
+#Same chart as above, but data filtered so T and Td have to be larger than 10°C
+# --> anything below not plausible (threshold of 10 to be discussed)
+filter(heating_data_rooms, T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+    ylab("Temperature") +
+    xlab("Date") +
+    labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+
+#Check plot: aggregate: Mean Temperature per point in time
+#aggregate(heating_data_rooms$T, by = list(heating_data_rooms$Zeit), FUN = "mean")
+#aggregate(heating_data_rooms$Td, by = list(heating_data_rooms$Zeit), FUN = "mean")
+
+heating_data_rooms$TempDelta <- heating_data_rooms$T - heating_data_rooms$Td
+
+#Delta of T and Td + Mean Val per point in time
+filter(heating_data_rooms, T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+  stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+  geom_hline(yintercept=0, color = "black", size = 2) +
+  stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+  ylab("Temperature-Delta") +
+  xlab("Date") +
+  labs(title = "Mean Delta of T and Td (T-Td) over all rooms per point in time Hotel Kurpark") +
+  scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
+
+##aggregation
+
+df2 <- heating_data_rooms %>%
+  group_by(Zeit, Room) %>%
+  summarise_at(c("T", "Val"), mean)
+
+#Correlation of T and Val per Room (mean over time)
+df2_cor <- df2 %>%
+  group_by(Room) %>%
+  summarise(r = cor(T, Val))
+
+
+
 ##### Moddeling with heating_widemax_TFX-dataset #####
 summary(heating_widemax_TFX)
 heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
@@ -483,7 +552,7 @@ df1[] <- lapply(df1, subtract1)
 df1 <- cbind(df1, heating_widemax_TFX$Zeit)
 summary(df1)
 
-summary(df1)
+#summary(df1)
 
 #sum(df1$Occ.Zi1.all)/length(df1$Occ.Zi1.all)-1
 
