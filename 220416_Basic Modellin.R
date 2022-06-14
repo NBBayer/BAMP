@@ -14,6 +14,7 @@ library(ggplot2)
 library(Microsoft365R)
 library(AzureAuth)
 library(AzureGraph)
+library("stringr")
 
 #Retrieving all the CSV data from Sharepoint:
 # Set the site and retrieve the link names
@@ -44,7 +45,7 @@ for (i in 1:length(list)){
 
 ############################ Christians Area ##########################
 
-####### Merge Code #######
+###### Merge Code ######
 
 library(tidyverse)
 #install.packages("here")
@@ -57,11 +58,11 @@ library(tidyr)
 library("stringr")
 
 #import all files from working directory -> IMPORTANT TO SET WORKING DIRECTORY
-
 getwd()
-setwd("C:/Users/chris/Documents/Master/00_BAMP/Energy Daten Hotel Marburger Hof/Testdata")
+setwd("C:/Users/chris/Betterspace GmbH/Team Mannheim Business School - Dokumente/General/04_Data & Analysis/01_Data/Hotel Sonneck_2980/Heating Data/Hotel Sonneck 1. Halbjahr 2019")
 getwd()
 
+#Create data frame with list of all files in working directory
 data_frame_names <- list.files(pattern = "*.csv")       # Get all file names
 data_frame_names 
 data_frame_list <- lapply(data_frame_names, read.csv2)  # Read all data frames
@@ -71,6 +72,7 @@ data_frame_list <- lapply(data_frame_names, read.csv2)  # Read all data frames
 
 #data_frame_list[1]
 
+#Empty new data frame to store merged files/dfs
 dfcs <- data.frame()
 
 #for loop transforms each file so there is one column with time stamp
@@ -90,31 +92,115 @@ for (i in 1:length(data_frame_list)){
 #Exchange all occurences of .occ with .all.occ to prevent mismatch of columns 
 #when separatig
 dfcs$Descr <- str_replace_all(dfcs$Descr, ".Occ", ".all.Occ")
+dfcs$Descr <- str_replace_all(dfcs$Descr, ".Text", ".all.Text")
+dfcs$Descr <- str_replace_all(dfcs$Descr, ".ClIn", ".all.ClIn")
 
 # separate ex-columntitles so different information is available in 
 # several columns (i.e. room, roomType, ...)
 dfcs <- dfcs %>% 
   separate(Descr, c("HotelID", "Room", "RoomType", "KPI"))
 
-#head(dfcs)
-
 #Split Occ from rest, since this is independent of room Type
-dfcs_occ <- dfcs[dfcs$KPI == "Occ",]
-dfcs_heat <- dfcs[dfcs$KPI != "Occ",]
+#dfcs_occ <- dfcs[dfcs$KPI == "Occ",]
+#dfcs_heat <- dfcs[dfcs$KPI != "Occ",]
 
 #Long to wide Format for each df
-dfcs_heat_wide2 <- spread(dfcs_heat, key = "KPI", value = "Value")
-dfcs_occ_wide2 <- spread(dfcs_occ, key = "KPI", value = "Value")
+#dfcs_heat_wide2 <- spread(dfcs_heat, key = "KPI", value = "Value")
+#dfcs_occ_wide2 <- spread(dfcs_occ, key = "KPI", value = "Value")
 
+#Bring everything into wide format, so each KPI is one column
+dfcs_wide2 <- spread(dfcs, key = "KPI", value = "Value")
 
 #saving as csv --> CHANGE PATH anf FILE NAME!!!
-write.table(dfcs_heat_wide2, "C:/Users/chris/Documents/Master/00_BAMP/Energy Daten Hotel Marburger Hof/heatingdata.txt")
-write.table(dfcs_occ_wide2, "C:/Users/chris/Documents/Master/00_BAMP/Energy Daten Hotel Marburger Hof/occdata.txt")
-#summary(dfcs)
-
+write.table(dfcs_wide2, "C:/Users/chris/Downloads/HotelzumStern_2.HJ2019_heating.txt")
 
 ###### End of Merge Code ######
 
+###### Data prep 17/05/2022 #######
+
+#dfcs: heating data in wide format, as specified at end of merge code
+dfcs <- dfcs_wide2
+summary(dfcs)
+
+dfcs$Room <- as.factor(dfcs$Room)
+dfcs$RoomType <- as.factor(dfcs$RoomType)
+dfcs$Occ <- as.factor(dfcs$Occ)
+dfcs$Win <- as.factor(dfcs$Win)
+
+#Creating subsets for each level of information
+
+dfcs_building <- dfcs[dfcs$Room == "Build",]
+dfcs_room <- dfcs[dfcs$RoomType == "all",]
+dfcs_roomtype <- dfcs[dfcs$RoomType != "all",]
+dfcs_roomtype <- dfcs_roomtype[dfcs_roomtype$RoomType != "Build",]
+
+#Prepare each subset individually -> long to wide
+dfcs_building <- subset(dfcs_building, select = -c(Occ, T, Td, Val, Win, Room, RoomType))
+names(dfcs_building) <- c("Zeit", "HotelID", "ClIn.all.Build", "Text.all.Build")
+
+
+dfcs_room <- subset(dfcs_room, select = -c(T, Td, Val, Win, Text, ClIn))
+dfcs_room$keylw <- paste("Occ", dfcs_room$Room, dfcs_room$RoomType, sep = ".")
+dfcs_room <- subset(dfcs_room, select = -c(Room, RoomType))
+dfcs_room_wide <- spread(dfcs_room, key = "keylw", value = "Occ")
+
+
+dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Occ, Text, ClIn))
+dfcs_roomtype$keylw <- paste(dfcs_roomtype$Room, dfcs_roomtype$RoomType, sep = ".")
+dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Room, RoomType))
+dfcs_roomtype$keylw <- as.factor(dfcs_roomtype$keylw)
+#dfcs_roomtype_wide <- reshape(data = dfcs_roomtype, 
+#v.names = c("T", "Td", "Val", "Win"),
+# timevar = "keylw",
+#idvar = c("Zeit", "HotelID"),
+# direction = "wide")
+dfcs_roomtype_wide <- pivot_wider(dfcs_roomtype, names_from = "keylw", 
+                                  values_from =  c("T", "Td", "Val", "Win"),
+                                  names_sep = ".")
+
+#merge wide subsets to entire data set, based on timestamp
+dfcshelp1 <- merge(dfcs_building, dfcs_room_wide, by = "Zeit")
+dfcshelp1 <- subset(dfcshelp1, select = -c(HotelID.y))
+
+heating_widemax <- merge(dfcshelp1, dfcs_roomtype_wide, by = "Zeit")
+heating_widemax <- subset(heating_widemax, select = -c(HotelID))
+summary(heating_widemax)
+
+#Save as csv
+write.csv(heating_widemax, "C:/Users/chris/Downloads/HotelzumStern_2.HJ2019_heating_widemax.csv")
+
+#merge with TFX_all data
+
+#UPDATE when running to specific use case
+TFX_all <- TFX_all
+heating_widemax <- HotelzumStern_1.HJ2020_heating_widemax
+
+#Subsetting, to only include Leistung from TFX file
+TFX_all <- subset(TFX_all, select = c(X, Kessel.Leistung, BHKW.1.2.3.Leistung))
+names(TFX_all) <- c("Zeit", "Kessel_Leistung", "BHKW_Leistung")
+TFX_all$Zeit <- fastPOSIXct(TFX_all$Zeit, required.components = 5L)
+summary(TFX_all)
+heating_widemax$Zeit <- fastPOSIXct(heating_widemax$Zeit, required.components = 5L)
+#heating_widemax_TFX <- merge(heating_widemax, TFX_all, by = "Zeit", all.x = TRUE)
+#heating_widemax_TFX <- NULL
+#summary(heating_widemax$Zeit)
+#heating_widemax_TFX <- NULL
+
+#Left join keeps all rows from heating --> many NAs since dates don't overlap entirely
+heating_widemax_TFX <- heating_widemax %>% left_join(TFX_all, by = "Zeit")
+
+#heating_widemax_TFX <- heating_widemax_TFX %>% drop_na(Kessel_Leistung)
+#summary(heating_widemax_TFX$LeistungGesamt)
+
+#Optinal: create new column with Sum of Leistung. ATTENTION: if one column contains an NA, sum is NA!!
+#heating_widemax_TFX$LeistungGesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
+
+#Export to csv
+write.csv(heating_widemax_TFX, "C:/Users/chris/Downloads/HotelzumStern_1.HJ2020_heating_widemax_TFX.csv")
+
+###### End of Data prep 17/05/2022 #######
+
+##### Basic Data analysis (old data set) ######
 
 library(dplyr)
 
@@ -370,99 +456,36 @@ merged_ts <- ts(merged_ts, frequency = 365, start = c(2019,1,1))
 
 plot.ts(merged_ts)
 
-###### Data prep 17/05/2022 #######
+##### End of Basic Data analysis (old data set) ######
 
-dfcs <- Heating_all_0120
-summary(dfcs)
-
-dfcs$Room <- as.factor(dfcs$Room)
-dfcs$RoomType <- as.factor(dfcs$RoomType)
-dfcs$Occ <- as.factor(dfcs$Occ)
-dfcs$Win <- as.factor(dfcs$Win)
-
-#Creating subsets for each level of information
-
-dfcs_building <- dfcs[dfcs$RoomType == "Build",]
-dfcs_room <- dfcs[dfcs$RoomType == "all",]
-dfcs_roomtype <- dfcs[dfcs$RoomType != "all",]
-dfcs_roomtype <- dfcs_roomtype[dfcs_roomtype$RoomType != "Build",]
-
-#Prepara each subset individually -> long to wide
-dfcs_building <- subset(dfcs_building, select = -c(Occ, T, Td, Val, Win, Room, RoomType))
-names(dfcs_building) <- c("Zeit", "HotelID", "ClIn.all.Build", "Text.all.Build")
-
-
-dfcs_room <- subset(dfcs_room, select = -c(T, Td, Val, Win, Text, ClIn))
-dfcs_room$keylw <- paste("Occ", dfcs_room$Room, dfcs_room$RoomType, sep = ".")
-dfcs_room <- subset(dfcs_room, select = -c(Room, RoomType))
-dfcs_room_wide <- spread(dfcs_room, key = "keylw", value = "Occ")
-
-
-dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Occ, Text, ClIn))
-dfcs_roomtype$keylw <- paste(dfcs_roomtype$Room, dfcs_roomtype$RoomType, sep = ".")
-dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Room, RoomType))
-dfcs_roomtype_wide <- reshape(data = dfcs_roomtype, 
-                              v.names = c("T", "Td", "Val", "Win"),
-                              timevar = "keylw",
-                              idvar = c("Zeit", "HotelID"),
-                              direction = "wide")
-
-#merge wide subsets to entire data set, based on timestamp
-dfcshelp1 <- merge(dfcs_building, dfcs_room_wide, by = "Zeit")
-dfcshelp1 <- subset(dfcshelp1, select = -c(HotelID.y))
-
-heating_widemax <- merge(dfcshelp1, dfcs_roomtype_wide, by = "Zeit")
-heating_widemax <- subset(heating_widemax, select = -c(HotelID))
-summary(heating_widemax)
-
-write.csv(heating_widemax, "C:/Users/chris/Desktop/heating_widemax.csv")
-
-#merge with TFX_all data
-
-TFX_all <- TFX_all_1
-
-TFX_all <- subset(TFX_all, select = c(X, Kessel.1.2.Leistung, BHKW.1.4.Leistung))
-names(TFX_all) <- c("Zeit", "Kessel_Leistung", "BHKW_Leistung")
-TFX_all$Zeit <- fastPOSIXct(TFX_all$Zeit, required.components = 5L)
-summary(TFX_all)
-heating_widemax$Zeit <- fastPOSIXct(heating_widemax$Zeit, required.components = 5L)
-#heating_widemax_TFX <- merge(heating_widemax, TFX_all, by = "Zeit", all.x = TRUE)
-#heating_widemax_TFX <- NULL
-
-
-#Legt join keeps all rows from heating --> many NAs since dates don't overlap entirely
-heating_widemax_TFX <- heating_widemax %>% left_join(TFX_all, by = "Zeit")
-
-heating_widemax_TFX <- heating_widemax_TFX %>% drop_na(Kessel_Leistung)
-summary(heating_widemax_TFX$BHKW_Leistung)
-
-write.csv(heating_widemax_TFX, "C:/Users/chris/Desktop/heating_widemax_TFX.csv")
-
-summary(TFX_all$Zeit)
-summary(heating_widemax$Zeit)
-
-###### End of Data prep 17/05/2022 #######
 
 ###### Data Exploration "raw" heating data ######
 
-heating_data <- Heating_all_0120
+#Import heating data, without TFX information
+heating_data <- HotelamKurpark_2.HJ2020_heating
 summary(heating_data)
 
+#Drop ClIn and Text (for now, maybe analyze separately)
 heating_data$ClIn <- NULL
 heating_data$Text <- NULL
 
+#Subsetting to only include guest rooms, not general ones
 heating_data_rooms <- subset(heating_data, grepl("Zi", heating_data$Room))
+
+#Drop Occupancy, since its only available on level room instead of roomType -> handling NAs
 heating_data_rooms$Occ <- NULL
 #summary(heating_data_rooms)
 heating_data_rooms$Room <- as.factor(heating_data_rooms$Room)
 heating_data_rooms$RoomType <- as.factor(heating_data_rooms$RoomType)
 heating_data_rooms$Zeit <- fastPOSIXct(heating_data_rooms$Zeit, required.components = 5L)
 heating_data_rooms$Win <- as.factor(heating_data_rooms$Win)
+heating_data_rooms$Zeit <- fastPOSIXct(heating_data_rooms$Zeit, required.components = 5L)
 
 #remove all N/A's (entire rows!)
 heating_data_rooms <- na.omit(heating_data_rooms)
 summary(heating_data_rooms)
 
+#Plot all data points T over time
 ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
   geom_point()
 
@@ -473,19 +496,31 @@ ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
 
 #Same chart as above, but data filtered so T and Td have to be larger than 10°C
 # --> anything below not plausible (threshold of 10 to be discussed)
+filter(heating_data_rooms, Room == "Zi1") %>%
+  filter(T > 10 & Td > 10) %>%
+    ggplot(aes(x = Zeit)) +
+      stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
+      stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+      ylab("Temperature") +
+      xlab("Date") +
+      labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
+      scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+
+#One filter less than above
 filter(heating_data_rooms, T > 10 & Td > 10) %>%
   ggplot(aes(x = Zeit)) +
-    stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
-    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
-    ylab("Temperature") +
-    xlab("Date") +
-    labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
-    scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+  stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
+  stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+  ylab("Temperature") +
+  xlab("Date") +
+  labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
+  scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
 
 #Check plot: aggregate: Mean Temperature per point in time
 #aggregate(heating_data_rooms$T, by = list(heating_data_rooms$Zeit), FUN = "mean")
 #aggregate(heating_data_rooms$Td, by = list(heating_data_rooms$Zeit), FUN = "mean")
 
+#Create new column that calculates delta in temperature
 heating_data_rooms$TempDelta <- heating_data_rooms$T - heating_data_rooms$Td
 
 #Delta of T and Td + Mean Val per point in time
@@ -513,14 +548,20 @@ df2_cor <- df2 %>%
 
 
 ##### Moddeling with heating_widemax_TFX-dataset #####
+
+heating_widemax_TFX <- dataset
+
 summary(heating_widemax_TFX)
 heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
+
+#Plot Kessel_Leistung over time
 ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Kessel_Leistung)) +
          geom_line()
 
 heating_widemax_TFX$Gesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
 heating_widemax_TFX <- subset(heating_widemax_TFX, select = -c(Kessel_Leistung, BHKW_Leistung))
 
+#Plot Gesamt_Leistung over time
 ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Gesamt)) +
         geom_line()
 plot(heating_widemax_TFX$Gesamt)
@@ -528,7 +569,6 @@ plot(heating_widemax_TFX$Gesamt)
 #subset only containing occupancy data
 df1 <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
 df1[] <- lapply(df1, as.factor)
-
 
 
 #remove "general" rooms since they are assumed to have to influence in change in temp
@@ -588,9 +628,7 @@ ggplot(df1, aes(x = factor(weekday), y = Auslastungsquote)) +
 
 
 
-
-
-#subset only containing occupancy data
+# Another subset only containing occupancy data
 df1 <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
 df1[] <- lapply(df1, as.factor)
 
