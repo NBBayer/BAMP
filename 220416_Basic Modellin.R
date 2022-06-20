@@ -1,8 +1,4 @@
-#summary(IWT_sample)
-#summary(TFX_sample)
-
-#summary(IWT)
-#summary(Best.Western.Premium.Schwarzwald.1..Halbjahr.2019.Zusammenfassung)
+##### Libraries #####
 
 library(tidyr)
 library(dplyr)
@@ -15,6 +11,10 @@ library(Microsoft365R)
 library(AzureAuth)
 library(AzureGraph)
 library("stringr")
+install.packages("rdwd")
+library(rdwd)
+
+#install.packages("rlang")
 
 #Retrieving all the CSV data from Sharepoint:
 # Set the site and retrieve the link names
@@ -482,6 +482,7 @@ heating_data_rooms$Win <- as.factor(heating_data_rooms$Win)
 heating_data_rooms$Zeit <- fastPOSIXct(heating_data_rooms$Zeit, required.components = 5L)
 
 #remove all N/A's (entire rows!)
+#Adjust selection in na.omit when only focussing one certain columns to not delete too much!!
 heating_data_rooms <- na.omit(heating_data_rooms)
 summary(heating_data_rooms)
 
@@ -503,7 +504,7 @@ filter(heating_data_rooms, Room == "Zi1") %>%
       stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
       ylab("Temperature") +
       xlab("Date") +
-      labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
+      labs(title = "Mean T and Td of Zi 01 per point in time Hotel Kurpark") +
       scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
 
 #One filter less than above
@@ -534,22 +535,57 @@ filter(heating_data_rooms, T > 10 & Td > 10) %>%
   labs(title = "Mean Delta of T and Td (T-Td) over all rooms per point in time Hotel Kurpark") +
   scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
 
+#Delta of T and Td + Mean Val per point in time, just Zi 01
+#IDEA: Add external temperate to explain spikes!
+filter(heating_data_rooms, Room == "Zi5") %>%
+  filter(T > 10 & Td > 10) %>%
+    ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 2) +
+    stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+    ylab("Temperature-Delta") +
+    xlab("Date") +
+    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
+
+#Delta of T and Td per point in time, just Zi 01
+filter(heating_data_rooms, Room == "Zi1") %>%
+  filter(T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+  stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+  geom_hline(yintercept=0, color = "black", size = 2) +
+    ylab("Temperature-Delta") +
+  xlab("Date") +
+  labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+  scale_color_manual("Legend", values = c("Delta T and Td" = "blue"))
+
 ##aggregation
 
 df2 <- heating_data_rooms %>%
   group_by(Zeit, Room) %>%
-  summarise_at(c("T", "Val"), mean)
+  summarise_at(c("TempDelta", "Val"), mean)
 
 #Correlation of T and Val per Room (mean over time)
 df2_cor <- df2 %>%
   group_by(Room) %>%
-  summarise(r = cor(T, Val))
+  summarise(r = cor(TempDelta, Val))
 
+#heating_data$TempDelta <- heating_data$T - heating_data$Td
 
+#filter(heating_data, Room == "Zi5") %>%
+#  filter(T > 10 & Td > 10) %>%
+#    ggplot(aes(x = Zeit)) +
+#      stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+#      geom_hline(yintercept=0, color = "black", size = 2) +
+#      stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+#      ylab("Temperature-Delta") +
+#      xlab("Date") +
+#      labs(title = "Mean Delta of T and Td (T-Td) in Zi 05 per point in time Hotel Kurpark") +
+#      scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
 
 ##### Moddeling with heating_widemax_TFX-dataset #####
 
-heating_widemax_TFX <- dataset
+heating_widemax_TFX <- HotelamKurpark_2.HJ2020_heating_widemax_TFX
 
 summary(heating_widemax_TFX)
 heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
@@ -557,6 +593,59 @@ heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.compo
 #Plot Kessel_Leistung over time
 ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Kessel_Leistung)) +
          geom_line()
+
+#Plot all.Build over time --> = Temperature??
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Text.all.Build)) +
+  geom_line()
+
+### Move to data preparation section ###
+
+##Add weather data from DWD
+#Get weather data from DWD
+link <- selectDWD(id = findID(name = "Hersfeld, Bad", exactmatch = FALSE), res="hourly", var="air_temperature", per="h")
+file <- dataDWD(link, read=FALSE)
+clim <- readDWD(file, varnames=TRUE)
+
+clim$Zeit <- fastPOSIXct(clim$MESS_DATUM, required.components = 5L)
+
+#Join with heating data
+heating_widemax_TFX_weather <- left_join(heating_widemax_TFX, y = clim, by = "Zeit")
+ggplot(data = heating_widemax_TFX_weather, aes(x = Zeit, y = TT_TU.Lufttemperatur)) +
+  geom_line()
+
+plot(heating_widemax_TFX_weather$Zeit, heating_widemax_TFX_weather$TT_TU.Lufttemperatur)
+
+
+## Add Feiertage 
+#Fetch Feiertage
+public_holidays <- jsonlite::fromJSON("https://date.nager.at/api/v2/publicholidays/2020/DE")
+
+public_holidays$Date <- public_holidays$date
+heating_widemax_TFX_weather$Date <- fastDate(substr(heating_widemax_TFX_weather$Zeit, 0, 10))
+public_holidays$Date <- fastDate(public_holidays$Date)
+
+#Join with heating data
+heating_widemax_TFX_weather_holiday <- left_join(heating_widemax_TFX_weather, y = public_holidays, by = "Date")
+#Replace NAs (no Holiday at date) with "kein Feiertag"
+heating_widemax_TFX_weather_holiday$localName[is.na(heating_widemax_TFX_weather_holiday$localName)] <- "kein Feiertag"
+
+
+## Add energy cost data
+
+#Link: https://www.smard.de/home/downloadcenter/download-marktdaten#!?downloadAttributes=%7B%22selectedCategory%22:3,%22selectedSubCategory%22:8,%22selectedRegion%22:%22DE%22,%22from%22:1590962400000,%22to%22:1609455599999,%22selectedFileType%22:%22CSV%22%7D
+
+energy_cost <- Gro_handelspreise_202006010000_202012312359
+#Change column name without ".x"!!!
+energy_cost$Zeit.x <- fastPOSIXct(energy_cost$Datetime, required.components = 5L, tz = "cest")
+
+heating_widemax_TFX_weather_holiday_ecosts <- left_join(heating_widemax_TFX_weather_holiday, y = energy_cost, by = "Zeit.x")
+
+
+
+
+### End of Move to data preparation section ###
+
+
 
 heating_widemax_TFX$Gesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
 heating_widemax_TFX <- subset(heating_widemax_TFX, select = -c(Kessel_Leistung, BHKW_Leistung))
@@ -575,6 +664,7 @@ df1[] <- lapply(df1, as.factor)
 # -> basis that never changes
 # remove columns with nas --> IDEA: can this be done automatically
 
+df1$Occ.Build.all <- NULL
 df1$Occ.TGRhoenI.all <- NULL
 df1$Occ.TGRhoenII.all <-  NULL
 df1$Occ.TGRhoenIII.all <- NULL
@@ -626,6 +716,46 @@ ggplot(meanAuslastungsquote, aes(Group.1, x)) +
 ggplot(df1, aes(x = factor(weekday), y = Auslastungsquote)) + 
   geom_boxplot()
 
+
+#Add TFX-energy usage data
+df1 <- cbind(df1, heating_widemax_TFX$LeistungGesamt)
+colnames(df1)[which(names(df1) == "heating_widemax_TFX$LeistungGesamt")] <- "LeistungGesamt"
+colnames(df1)[which(names(df1) == "heating_widemax_TFX$Zeit")] <- "Zeit"
+
+df1$month <- as.factor(month(df1$Zeit))
+df1$week <- as.factor(week(df1$Zeit))
+
+ggplot(df1, aes(x = Zeit, y = LeistungGesamt)) +
+  geom_line()
+
+
+#Plot mean Leistung per week (attention: week 1 is following year)
+#Remark: 2nd axis for mean Auslastungsquote, AQ is still plotted in 1st axis 
+# --> *100 and /100 to make impression of fit to 2nd axis
+df1 %>%
+  group_by(week) %>%
+    summarise(mean_Leistung_week = mean(LeistungGesamt), meanAuslastungWeek = mean(Auslastungsquote)) %>%
+      ggplot() + 
+        geom_bar(aes(x = week, y = mean_Leistung_week), stat = "identity", fill = "grey") + 
+        labs(title = "Mean Leistung and Auslastungsquote per week, 2. HJ 2020, Hotel Kurpark") +
+        geom_line(aes(x = week, y = meanAuslastungWeek*100), group = 1, color = "black", size = 1)  +
+        scale_y_continuous(name = "Mean Leistung per Week", 
+                           sec.axis = sec_axis(~. /100, name = "Mean Auslastungsquote per week"))
+
+#CHECK!!! mean Auslastungsquote?
+df1 %>%
+  filter(month == "7") %>%
+      ggplot() + 
+      geom_bar(aes(x = Date, y = LeistungGesamt), stat = "identity", fill = "grey") + 
+      labs(title = "Sum Leistung and Auslastungsquote, 2. HJ 2020, Hotel Kurpark") +
+      geom_line(aes(x = Date, y = Auslastungsquote*6000), group = 1, color = "black", size = 1)  +
+      scale_y_continuous(name = "Summe Leistung", 
+                         sec.axis = sec_axis(~. /6000, name = "Auslastungsquote"))
+
+
+
+
+#--
 
 
 # Another subset only containing occupancy data
