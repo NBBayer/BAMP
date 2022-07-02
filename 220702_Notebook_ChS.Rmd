@@ -1,0 +1,610 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+
+---
+
+```{r setup}
+library(knitr)
+knitr::opts_knit$set(root.dir = normalizePath("C:/Users/chris/Betterspace GmbH/Team Mannheim Business School - Dokumente/General/04_Data & Analysis/01_Data/Hotel Sonneck_2980/Heating Data/Hotel Sonneck 1. Halbjahr 2019"))
+```
+
+
+Installing packages to convert Notebook to html/pdf/...
+
+```{r}
+#install.packages("htmltools")
+library(htmltools)
+
+```
+
+Required libraries
+
+```{r}
+
+#install.packages("lubridate")
+#install.packages("Microsoft365R")
+#install.packages("rdwd")
+#install.packages("here")
+#install.packages("stringr")
+
+library(tidyr)
+library(dplyr)
+library(fasttime)
+library(lubridate)
+library(ggplot2)
+library(Microsoft365R)
+library(AzureAuth)
+library(AzureGraph)
+library("stringr")
+library(rdwd)
+library(tidyverse)
+library(here)
+library(dbplyr)
+
+
+```
+
+
+```{r}
+
+#Retrieving all the CSV data from Sharepoint:
+# Set the site and retrieve the link names
+site <- get_sharepoint_site(site_url = "https://mssdconcept.sharepoint.com/sites/TeamMannheimBusinessSchool")
+url <- "General/04_Data & Analysis/01_Data/Test Hotel/"
+drv <- site$get_drive()
+links <- drv$list_items(url)
+links <- links$name
+
+# Create the correct path by adding the link names to the original path
+list = c()
+for (i in links){
+  d =paste(url,i, sep ="")
+  list = c(list,d)}
+list <- list[grepl("csv", list)]
+list
+
+
+# Bulk download all the files from the Folder 
+for (i in 1:length(list)){
+  drv$download_file(list[i])
+}
+
+### NB: Discussion if the Import might be also be done automaticaly??
+
+#Merge the Heating Data from the Sharepoint File
+#I will continue working on this part 
+
+```
+
+Christians Area
+
+Merge Code
+This code merges all heating-data files (one per room) into one central file 
+with all the heating data. In addition, columns and columns names are adjusted
+so the data frame is easy to analyze
+
+1) import all files from working directory -> IMPORTANT TO SET WORKING DIRECTORY at the top
+
+```{r}
+#Create data frame with list of all files in working directory
+data_frame_names <- list.files(pattern = "*.csv")       # Get all file names
+#data_frame_names 
+data_frame_list <- lapply(data_frame_names, read.csv2)  # Read all data frames
+#data_frame_list #uncomment to see all files (takes a long time!)
+
+#length(data_frame_list)
+
+#data_frame_list[1]
+
+#Empty new data frame to store merged files/dfcs
+dfcs <- data.frame()
+
+#for loop transforms each file so there is one column with time stamp
+# (existing), one with the measured KPI and one with the measured value
+# All are saved in one data frame with this structure of three columns
+i= 1
+for (i in 1:length(data_frame_list)){
+  
+  var <- pivot_longer(as.data.frame(data_frame_list[i]) %>%
+                        mutate(across(c(!"Zeit"), as.character)), cols = c(!"Zeit"), 
+                      names_to = "Descr", values_to = "Value")
+  
+  dfcs <- rbind(dfcs, var)
+  
+}
+
+#Exchange all occurences of .occ with .all.occ to prevent mismatch of columns 
+#when separating
+dfcs$Descr <- str_replace_all(dfcs$Descr, ".Occ", ".all.Occ")
+dfcs$Descr <- str_replace_all(dfcs$Descr, ".Text", ".all.Text")
+dfcs$Descr <- str_replace_all(dfcs$Descr, ".ClIn", ".all.ClIn")
+
+# separate ex-columntitles so different information is available in 
+# several columns (i.e. room, roomType, ...)
+dfcs <- dfcs %>% 
+  separate(Descr, c("HotelID", "Room", "RoomType", "KPI"))
+
+#Split Occ from rest, since this is independent of room Type -> currently not used
+#dfcs_occ <- dfcs[dfcs$KPI == "Occ",]
+#dfcs_heat <- dfcs[dfcs$KPI != "Occ",]
+
+#Long to wide Format for each df -> currently not used
+#dfcs_heat_wide2 <- spread(dfcs_heat, key = "KPI", value = "Value")
+#dfcs_occ_wide2 <- spread(dfcs_occ, key = "KPI", value = "Value")
+
+#Bring everything into wide format, so each KPI is one column
+dfcs_wide2 <- spread(dfcs, key = "KPI", value = "Value")
+
+#saving as csv --> CHANGE PATH anf FILE NAME!!!
+write.table(dfcs_wide2, "C:/Users/chris/Downloads/HotelzumStern_2.HJ2019_heating.txt")
+
+```
+
+Data preparation
+Created: 17/05/2022
+
+This code section prepares the data for a. data exploration and b. modelling
+In essence, the heating data frame is changed into a wide format (one column 
+per KPI) and later into a max. wide format (one line per point in time). 
+Also, TFX-data on heating/thermal energy consumption is added (dependent 
+variable in models later)
+
+dfcs: heating data in wide format, as specified at end of merge code
+
+```{r}
+
+dfcs <- dfcs_wide2
+#summary(dfcs)
+
+dfcs$Room <- as.factor(dfcs$Room)
+dfcs$RoomType <- as.factor(dfcs$RoomType)
+dfcs$Occ <- as.factor(dfcs$Occ)
+dfcs$Win <- as.factor(dfcs$Win)
+
+#Creating subsets for each level of information (available on differen 
+# hierarchy levels)
+
+dfcs_building <- dfcs[dfcs$Room == "Build",]
+dfcs_room <- dfcs[dfcs$RoomType == "all",]
+dfcs_roomtype <- dfcs[dfcs$RoomType != "all",]
+dfcs_roomtype <- dfcs_roomtype[dfcs_roomtype$RoomType != "Build",]
+
+#Prepare each subset individually -> long to wide
+dfcs_building <- subset(dfcs_building, select = -c(Occ, T, Td, Val, Win, Room, RoomType))
+names(dfcs_building) <- c("Zeit", "HotelID", "ClIn.all.Build", "Text.all.Build")
+
+
+dfcs_room <- subset(dfcs_room, select = -c(T, Td, Val, Win, Text, ClIn))
+dfcs_room$keylw <- paste("Occ", dfcs_room$Room, dfcs_room$RoomType, sep = ".")
+dfcs_room <- subset(dfcs_room, select = -c(Room, RoomType))
+dfcs_room_wide <- spread(dfcs_room, key = "keylw", value = "Occ")
+
+
+dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Occ, Text, ClIn))
+dfcs_roomtype$keylw <- paste(dfcs_roomtype$Room, dfcs_roomtype$RoomType, sep = ".")
+dfcs_roomtype <- subset(dfcs_roomtype, select = -c(Room, RoomType))
+dfcs_roomtype$keylw <- as.factor(dfcs_roomtype$keylw)
+
+#dfcs_roomtype_wide <- reshape(data = dfcs_roomtype, 
+#v.names = c("T", "Td", "Val", "Win"),
+# timevar = "keylw",
+#idvar = c("Zeit", "HotelID"),
+# direction = "wide")
+
+dfcs_roomtype_wide <- pivot_wider(dfcs_roomtype, names_from = "keylw", 
+                                  values_from =  c("T", "Td", "Val", "Win"),
+                                  names_sep = ".")
+
+#merge wide subsets to entire data set, based on timestamp
+dfcshelp1 <- merge(dfcs_building, dfcs_room_wide, by = "Zeit")
+dfcshelp1 <- subset(dfcshelp1, select = -c(HotelID.y))
+
+heating_widemax <- merge(dfcshelp1, dfcs_roomtype_wide, by = "Zeit")
+heating_widemax <- subset(heating_widemax, select = -c(HotelID))
+#summary(heating_widemax)
+
+#Save as csv
+write.csv(heating_widemax, "C:/Users/chris/Downloads/HotelzumStern_2.HJ2019_heating_widemax.csv")
+
+
+```
+
+Merging with TFX data on thermal energy consumption
+
+```{r}
+#ASSIGN CORRECT DF when running to specific use case
+TFX_all <- TFX_all
+heating_widemax <- HotelzumStern_1.HJ2020_heating_widemax
+
+#Subsetting, to only include Leistung from TFX file
+TFX_all <- subset(TFX_all, select = c(X, Kessel.Leistung, BHKW.1.2.3.Leistung))
+names(TFX_all) <- c("Zeit", "Kessel_Leistung", "BHKW_Leistung")
+TFX_all$Zeit <- fastPOSIXct(TFX_all$Zeit, required.components = 5L)
+#summary(TFX_all)
+heating_widemax$Zeit <- fastPOSIXct(heating_widemax$Zeit, required.components = 5L)
+
+
+#Left join keeps all rows from heating --> many NAs since dates don't overlap entirely
+heating_widemax_TFX <- heating_widemax %>% left_join(TFX_all, by = "Zeit")
+
+#heating_widemax_TFX <- heating_widemax_TFX %>% drop_na(Kessel_Leistung)
+#summary(heating_widemax_TFX$LeistungGesamt)
+
+#Optinal: create new column with Sum of Leistung. ATTENTION: if one column contains an NA, sum is NA!!
+#heating_widemax_TFX$LeistungGesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
+
+#Export to csv
+write.csv(heating_widemax_TFX, "C:/Users/chris/Downloads/HotelzumStern_1.HJ2020_heating_widemax_TFX.csv")
+
+```
+
+Feature engineering and external data
+
+1) Add weather data from DWD
+
+```{r}
+#Get weather data from DWD
+#ATTENTION: ZIP FILE DOWNLOADED TO WORKING DIRECTORY
+link <- selectDWD(id = findID(name = "Hersfeld, Bad", exactmatch = FALSE), res="hourly", var="air_temperature", per="h")
+file <- dataDWD(link, read=FALSE)
+clim <- readDWD(file, varnames=TRUE)
+
+clim$Zeit <- fastPOSIXct(clim$MESS_DATUM, required.components = 5L)
+
+#Join with heating data
+heating_widemax_TFX_weather <- left_join(heating_widemax_TFX, y = clim, by = "Zeit")
+ggplot(data = heating_widemax_TFX_weather, aes(x = Zeit, y = TT_TU.Lufttemperatur)) +
+  geom_line()
+
+plot(heating_widemax_TFX_weather$Zeit, heating_widemax_TFX_weather$TT_TU.Lufttemperatur)
+
+```
+
+2) Add Public Holidays
+
+```{r}
+#Fetch Feiertage
+# Change link if different country and/or year required!
+public_holidays <- jsonlite::fromJSON("https://date.nager.at/api/v2/publicholidays/2020/DE")
+
+public_holidays$Date <- public_holidays$date
+heating_widemax_TFX_weather$Date <- fastDate(substr(heating_widemax_TFX_weather$Zeit, 0, 10))
+public_holidays$Date <- fastDate(public_holidays$Date)
+
+#Join with heating data
+heating_widemax_TFX_weather_holiday <- left_join(heating_widemax_TFX_weather, y = public_holidays, by = "Date")
+#Replace NAs (no Holiday at date) with "kein Feiertag"
+heating_widemax_TFX_weather_holiday$localName[is.na(heating_widemax_TFX_weather_holiday$localName)] <- "kein Feiertag"
+
+```
+
+3) Add energy cost data
+
+```{r}
+#Download energy cost data from link in relevant time frame, then import to R directory
+#Link: https://www.smard.de/home/downloadcenter/download-marktdaten#!?downloadAttributes=%7B%22selectedCategory%22:3,%22selectedSubCategory%22:8,%22selectedRegion%22:%22DE%22,%22from%22:1590962400000,%22to%22:1609455599999,%22selectedFileType%22:%22CSV%22%7D
+
+energy_cost <- Gro_handelspreise_202006010000_202012312359
+#Change column name without ".x"!!!
+energy_cost$Zeit.x <- fastPOSIXct(energy_cost$Datetime, required.components = 5L, tz = "cest")
+
+heating_widemax_TFX_weather_holiday_ecosts <- left_join(heating_widemax_TFX_weather_holiday, y = energy_cost, by = "Zeit.x")
+```
+
+Data Exploration of raw heating data 
+
+```{r}
+#Import heating data, without TFX information
+heating_data <- HotelamKurpark_1.HJ2020_heating
+heating_data$Zeit <- fastPOSIXct(heating_data$Zeit, required.components = 5L)
+summary(heating_data)
+```
+Some data preparation for data exploration
+
+```{r}
+#Drop ClIn and Text (for now, maybe analyze separately)
+heating_data$ClIn <- NULL
+heating_data$Text <- NULL
+
+#Subsetting to only include guest rooms, not general ones
+#Assumption: general rooms to be viewd as "fixed basic energy usage" with 
+#no significant impact on change in energy consumption --> focus on guest rooms
+heating_data_rooms <- subset(heating_data, grepl("Zi", heating_data$Room))
+
+#Drop Occupancy, since its only available on level room instead of roomType 
+#-> DISCUSS handling NAs
+heating_data_rooms$Occ <- NULL
+#summary(heating_data_rooms)
+heating_data_rooms$Room <- as.factor(heating_data_rooms$Room)
+heating_data_rooms$RoomType <- as.factor(heating_data_rooms$RoomType)
+heating_data_rooms$Zeit <- fastPOSIXct(heating_data_rooms$Zeit, required.components = 5L)
+heating_data_rooms$Win <- as.factor(heating_data_rooms$Win)
+
+#remove all N/A's (entire rows!)
+#Adjust selection in na.omit when only focussing one certain columns to not delete too much!!
+heating_data_rooms <- na.omit(heating_data_rooms)
+summary(heating_data_rooms)
+```
+Plot all data points T over time
+```{r}
+ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
+  geom_point()
+```
+
+Plot mean Temperature over all rooms per point in time
+```{r}
+ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
+  stat_summary(aes(y = T), fun = "mean", geom = "line", colour = "red") +
+  stat_summary(aes(y=Td), fun = "mean", geom = "line", colour = "blue") +
+  scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+
+```
+
+Same chart as above, but data filtered so T and Td have to be larger than 10°C
+--> assumption: anything below not plausible (threshold of 10 to be discussed)
+
+```{r}
+filter(heating_data_rooms, Room == "Zi1") %>%
+  filter(T > 10 & Td > 10) %>%
+    ggplot(aes(x = Zeit)) +
+      stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
+      stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+      ylab("Temperature") +
+      xlab("Date") +
+      labs(title = "Mean T and Td of Zi 01 per point in time Hotel Kurpark") +
+      scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+```
+
+One filter less than above
+
+```{r}
+filter(heating_data_rooms, T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+  stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
+  stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+  ylab("Temperature") +
+  xlab("Date") +
+  labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
+  scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+```
+
+Check plot: aggregate: Mean Temperature per point in time
+#aggregate(heating_data_rooms$T, by = list(heating_data_rooms$Zeit), FUN = "mean")
+#aggregate(heating_data_rooms$Td, by = list(heating_data_rooms$Zeit), FUN = "mean")
+
+Create new column that calculates delta in temperature
+```{r}
+heating_data_rooms$TempDelta <- heating_data_rooms$T - heating_data_rooms$Td
+```
+
+Delta of T and Td + Mean Val per point in time
+```{r}
+filter(heating_data_rooms, T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+  stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+  geom_hline(yintercept=0, color = "black", size = 2) +
+  stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+  ylab("Temperature-Delta") +
+  xlab("Date") +
+  labs(title = "Mean Delta of T and Td (T-Td) over all rooms per point in time Hotel Kurpark") +
+  scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
+```
+
+
+Delta of T and Td + Mean Val per point in time, just Zi 01
+IDEA: Add external temperate to explain spikes!
+
+```{r}
+filter(heating_data_rooms, Room == "Zi5") %>%
+  filter(T > 10 & Td > 10) %>%
+    ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 2) +
+    stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+    ylab("Temperature-Delta") +
+    xlab("Date") +
+    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
+```
+
+Delta of T and Td per point in time, just Zi 01
+
+```{r}
+filter(heating_data_rooms, Room == "Zi1") %>%
+  filter(T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 2) +
+    ylab("Temperature-Delta") +
+    xlab("Date") +
+    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("Delta T and Td" = "blue"))
+```
+
+Aggregation for exploration
+
+```{r}
+df2 <- heating_data_rooms %>%
+  group_by(Zeit, Room) %>%
+  summarise_at(c("TempDelta", "Val"), mean)
+
+#Correlation of T and Val per Room (mean over time)
+df2_cor <- df2 %>%
+  group_by(Room) %>%
+  summarise(r = cor(TempDelta, Val))
+
+df2_cor
+```
+
+Moddeling with heating_widemax_TFX-dataset
+
+```{r}
+heating_widemax_TFX <- HotelamKurpark_1.HJ2020_heating_widemax_TFX
+
+#summary(heating_widemax_TFX)
+heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
+
+#Plot Kessel_Leistung over time
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Kessel_Leistung)) +
+         geom_line()
+```
+
+Plot all.Build over time --> = Temperature??
+
+```{r}
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Text.all.Build)) +
+  geom_line()
+```
+
+Plot Gesamt_Leistung over time
+
+```{r}
+heating_widemax_TFX$Gesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
+heating_widemax_TFX <- subset(heating_widemax_TFX, select = -c(Kessel_Leistung, BHKW_Leistung))
+
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Gesamt)) +
+        geom_line()
+plot(heating_widemax_TFX$Gesamt)
+```
+
+subset only containing occupancy data
+
+```{r}
+
+heating_widemax_TFX_Occ <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
+heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, as.factor)
+
+#remove "general" rooms since they are assumed to have to influence in change in temp
+# -> basis that never changes
+# remove columns with nas --> IDEA: can this be done automatically
+
+heating_widemax_TFX_Occ$Occ.Build.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGRhoenI.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGRhoenII.all <-  NULL
+heating_widemax_TFX_Occ$Occ.TGRhoenIII.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGVogelsberg.all <- NULL
+heating_widemax_TFX_Occ$Occ.Zi18.all <- NULL
+heating_widemax_TFX_Occ$Occ.Zi9A.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGVogelsberg.all <- NULL
+
+#subtract 1 from each value in df1 since true = 2 and false = 1
+heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, as.integer)
+subtract1 <- function(x){
+  return(x-1)
+}
+heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, subtract1)
+heating_widemax_TFX_Occ <- cbind(heating_widemax_TFX_Occ, heating_widemax_TFX$Zeit)
+summary(heating_widemax_TFX_Occ)
+```
+
+Plot Auslastung over time
+
+```{r}
+heating_widemax_TFX_Occ$AuslastungSum <- rowSums(heating_widemax_TFX_Occ[,0:35])
+ggplot(data = heating_widemax_TFX_Occ, aes(x = heating_widemax_TFX$Zeit, y = AuslastungSum)) +
+  geom_line()
+```
+
+Plot Auslastungsquote over time
+```{r}
+#Quote
+heating_widemax_TFX_Occ$Auslastungsquote <- heating_widemax_TFX_Occ$AuslastungSum/35
+ggplot(data = heating_widemax_TFX_Occ, aes(x = heating_widemax_TFX$Zeit, y = Auslastungsquote)) +
+  geom_line()
+```
+
+```{r}
+heating_widemax_TFX_Occ$Date <- fastDate(substr(heating_widemax_TFX_Occ$`heating_widemax_TFX$Zeit`, 0, 10))
+heating_widemax_TFX_Occ$weekday <- as.factor(weekdays(heating_widemax_TFX_Occ$Date))
+heating_widemax_TFX_Occ[heating_widemax_TFX_Occ$weekday == "Samstag" | heating_widemax_TFX_Occ$weekday ==  "Sonntag", "weekend"] <- 1
+heating_widemax_TFX_Occ[heating_widemax_TFX_Occ$weekday == "Montag" | heating_widemax_TFX_Occ$weekday ==  "Dienstag" | heating_widemax_TFX_Occ$weekday ==  "Mittwoch" | 
+                          heating_widemax_TFX_Occ$weekday ==  "Donnerstag" | heating_widemax_TFX_Occ$weekday ==  "Freitag", "weekend"] <- 0
+
+heating_widemax_TFX_Occ$weekend <- as.integer(heating_widemax_TFX_Occ$weekend)
+cor(heating_widemax_TFX_Occ$Auslastungsquote, heating_widemax_TFX_Occ$weekend)
+```
+
+BarChart with mean Auslastungsquote per Weekday
+
+```{r}
+meanAuslastungsquote <- aggregate(heating_widemax_TFX_Occ$Auslastungsquote, list(heating_widemax_TFX_Occ$weekday), mean)
+ggplot(meanAuslastungsquote, aes(Group.1, x)) +
+  geom_bar(stat = "identity")
+```
+
+Boxplot with mean Auslastungsquote per Weekday
+
+```{r}
+ggplot(heating_widemax_TFX_Occ, aes(x = factor(weekday), y = Auslastungsquote)) + 
+  geom_boxplot()
+```
+
+Add TFX-energy usage data to subset
+
+```{r}
+
+heating_widemax_TFX_Occ <- cbind(heating_widemax_TFX_Occ, heating_widemax_TFX$LeistungGesamt)
+colnames(heating_widemax_TFX_Occ)[which(names(heating_widemax_TFX_Occ) == "heating_widemax_TFX$LeistungGesamt")] <- "LeistungGesamt"
+colnames(heating_widemax_TFX_Occ)[which(names(heating_widemax_TFX_Occ) == "heating_widemax_TFX$Zeit")] <- "Zeit"
+
+heating_widemax_TFX_Occ$month <- as.factor(month(heating_widemax_TFX_Occ$Zeit))
+heating_widemax_TFX_Occ$week <- as.factor(week(heating_widemax_TFX_Occ$Zeit))
+
+ggplot(heating_widemax_TFX_Occ, aes(x = Zeit, y = LeistungGesamt)) +
+  geom_line()
+```
+
+Plot mean Leistung per week (attention: week 1 is following year)
+Remark: 2nd axis for mean Auslastungsquote, AQ is still plotted in 1st axis 
+--> *100 and /100 to make impression of fit to 2nd axis
+
+```{r}
+heating_widemax_TFX_Occ %>%
+  group_by(week) %>%
+    summarise(mean_Leistung_week = mean(LeistungGesamt), meanAuslastungWeek = mean(Auslastungsquote)) %>%
+      ggplot() + 
+        geom_bar(aes(x = week, y = mean_Leistung_week), stat = "identity", fill = "grey") + 
+        labs(title = "Mean Leistung and Auslastungsquote per week, 1. HJ 2020, Hotel Kurpark") +
+        geom_line(aes(x = week, y = meanAuslastungWeek*100), group = 1, color = "black", size = 1)  +
+        scale_y_continuous(name = "Mean Leistung per Week", 
+                           sec.axis = sec_axis(~. /100, name = "Mean Auslastungsquote per week"))
+```
+
+CHECK!!! mean Auslastungsquote?
+
+```{r}
+heating_widemax_TFX_Occ %>%
+  filter(month == "3") %>%
+    ggplot() + 
+    geom_bar(aes(x = Date, y = LeistungGesamt), stat = "identity", fill = "grey") + 
+    labs(title = "Sum Leistung and Auslastungsquote, 1. HJ 2020, Hotel Kurpark") +
+    geom_line(aes(x = Date, y = Auslastungsquote*6000), group = 1, color = "black", size = 1)  +
+    scale_y_continuous(name = "Summe Leistung", 
+                       sec.axis = sec_axis(~. /6000, name = "Auslastungsquote"))
+
+```
+
+First try of Lasso --> not done and not checked yet!
+
+```{r}
+y <- df1$`heating_widemax_TFX$Gesamt`
+x <- data.matrix(df1[, c(2:36)])
+
+library(glmnet)
+cv_model <- cv.glmnet(x, y, alpha = 1)
+best_lambda <-cv_model$lambda.min
+#best_lambda
+
+plot(cv_model)
+
+lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(lasso_model)
+```
+
+
+
+
+
