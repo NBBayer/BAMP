@@ -755,12 +755,7 @@ heating_widemax_TFX_Occ %>%
                          sec.axis = sec_axis(~. /6000, name = "Auslastungsquote"))
 
 
-
-
-#--
-
-
-# Another subset only containing occupancy data
+# Different subset only containing occupancy data
 df1 <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
 df1[] <- lapply(df1, as.factor)
 
