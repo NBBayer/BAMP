@@ -342,7 +342,7 @@ Data Exploration of raw heating data
 
 ```{r}
 #Import heating data, without TFX information
-heating_data <- HotelamKurpark_1.HJ2020_heating
+heating_data <- HotelamKurpark_2.HJ2020_heating
 heating_data$Zeit <- fastPOSIXct(heating_data$Zeit, required.components = 5L)
 summary(heating_data)
 ```
@@ -486,7 +486,7 @@ df2_cor
 Moddeling with heating_widemax_TFX-dataset
 
 ```{r}
-heating_widemax_TFX <- HotelamKurpark_1.HJ2020_heating_widemax_TFX
+heating_widemax_TFX <- HotelamKurpark_2.HJ2020_heating_widemax_TFX
 
 #summary(heating_widemax_TFX)
 heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
@@ -611,7 +611,7 @@ heating_widemax_TFX_Occ %>%
     summarise(mean_Leistung_week = mean(LeistungGesamt), meanAuslastungWeek = mean(Auslastungsquote)) %>%
       ggplot() + 
         geom_bar(aes(x = week, y = mean_Leistung_week), stat = "identity", fill = "grey") + 
-        labs(title = "Mean Leistung and Auslastungsquote per week, 1. HJ 2020, Hotel Kurpark") +
+        labs(title = "Mean Leistung and Auslastungsquote per week, 2. HJ 2020, Hotel Kurpark") +
         geom_line(aes(x = week, y = meanAuslastungWeek*100), group = 1, color = "black", size = 1)  +
         scale_y_continuous(name = "Mean Leistung per Week", 
                            sec.axis = sec_axis(~. /100, name = "Mean Auslastungsquote per week"))
@@ -621,10 +621,10 @@ CHECK!!! mean Auslastungsquote?
 
 ```{r}
 heating_widemax_TFX_Occ %>%
-  filter(month == "3") %>%
+  filter(month == "11") %>%
     ggplot() + 
     geom_bar(aes(x = Date, y = LeistungGesamt), stat = "identity", fill = "grey") + 
-    labs(title = "Sum Leistung and Auslastungsquote, 1. HJ 2020, Hotel Kurpark") +
+    labs(title = "Sum Leistung and Auslastungsquote, 2. HJ 2020, Hotel Kurpark") +
     geom_line(aes(x = Date, y = Auslastungsquote*6000), group = 1, color = "black", size = 1)  +
     scale_y_continuous(name = "Summe Leistung", 
                        sec.axis = sec_axis(~. /6000, name = "Auslastungsquote"))
