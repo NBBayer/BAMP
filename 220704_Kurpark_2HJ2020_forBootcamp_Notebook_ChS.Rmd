@@ -216,16 +216,15 @@ Merging with TFX data on thermal energy consumption
 
 ```{r}
 #ASSIGN CORRECT DF when running to specific use case
-TFX_all <- TFX_all
-heating_widemax <- HotelzumStern_1.HJ2020_heating_widemax
+TFX_all <- TFX_all_4
+heating_widemax <- heating_widemax_TFX_weather_holiday
 
 #Subsetting, to only include Leistung from TFX file
-TFX_all <- subset(TFX_all, select = c(X, Kessel.Leistung, BHKW.1.2.3.Leistung))
+TFX_all <- subset(TFX_all, select = c(X, Kessel.1.2.Leistung, BHKW.1.4.Leistung))
 names(TFX_all) <- c("Zeit", "Kessel_Leistung", "BHKW_Leistung")
 TFX_all$Zeit <- fastPOSIXct(TFX_all$Zeit, required.components = 5L)
 #summary(TFX_all)
-heating_widemax$Zeit <- fastPOSIXct(heating_widemax$Zeit, required.components = 5L)
-
+heating_widemax$Zeit <- fastPOSIXct(heating_widemax$Zeit.x, required.components = 5L)
 
 #Left join keeps all rows from heating --> many NAs since dates don't overlap entirely
 heating_widemax_TFX <- heating_widemax %>% left_join(TFX_all, by = "Zeit")
@@ -237,7 +236,7 @@ heating_widemax_TFX <- heating_widemax %>% left_join(TFX_all, by = "Zeit")
 #heating_widemax_TFX$LeistungGesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
 
 #Export to csv
-write.csv(heating_widemax_TFX, "C:/Users/chris/Downloads/HotelzumStern_1.HJ2020_heating_widemax_TFX.csv")
+write.csv(heating_widemax_TFX, "C:/Users/chris/Downloads/HotelamKurpark_2.HJ2020_heating_widemax_TFX_addData.csv")
 
 ```
 
@@ -248,7 +247,7 @@ ATTENTION: weather data is available on an hourly basis --> 4x same value in res
 
 ```{r}
 
-heating_widemax_TFX <- HotelamKurpark_1.HJ2020_heating_widemax
+heating_widemax_TFX <- HotelamKurpark_2.HJ2020_heating_widemax
 heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
 
 #Get weather data from DWD
@@ -279,7 +278,7 @@ plot(heating_widemax_TFX_weather$Zeit, heating_widemax_TFX_weather$TT_TU.Lufttem
 public_holidays <- jsonlite::fromJSON("https://date.nager.at/api/v2/publicholidays/2020/DE")
 
 public_holidays$Date <- public_holidays$date
-heating_widemax_TFX_weather$Date <- fastDate(substr(heating_widemax_TFX_weather$Zeit.x, 0, 10))
+heating_widemax_TFX_weather$Date <- fastDate(substr(heating_widemax_TFX_weather$Zeit, 0, 10))
 public_holidays$Date <- fastDate(public_holidays$Date)
 
 #Join with heating data
@@ -305,7 +304,7 @@ heating_widemax_TFX_weather_holiday_ecosts <- left_join(heating_widemax_TFX_weat
 Feature engineering
 
 ```{r}
-heating_widemax_TFX_weather_holiday$Date <- fastDate(substr(heating_widemax_TFX_weather_holiday$Zeit.x, 0, 10))
+heating_widemax_TFX_weather_holiday$Date <- fastDate(substr(heating_widemax_TFX_weather_holiday$Zeit, 0, 10))
 heating_widemax_TFX_weather_holiday$weekday <- as.factor(weekdays(heating_widemax_TFX_weather_holiday$Date))
 heating_widemax_TFX_weather_holiday[heating_widemax_TFX_weather_holiday$weekday == "Samstag" | heating_widemax_TFX_weather_holiday$weekday ==  "Sonntag", "weekend"] <- 1
 heating_widemax_TFX_weather_holiday[heating_widemax_TFX_weather_holiday$weekday == "Montag" | heating_widemax_TFX_weather_holiday$weekday ==  "Dienstag" | heating_widemax_TFX_weather_holiday$weekday ==  "Mittwoch" | 
@@ -334,7 +333,7 @@ heating_widemax_TFX_weather_holiday$launchYear <- NULL
 heating_widemax_TFX_weather_holiday$type <- NULL
 
 #Export to csv
-write.csv(heating_widemax_TFX_weather_holiday, "C:/Users/chris/Downloads/HotelamKurpark_1.HJ2020_heating_widemax_TFX_addData.csv")
+write.csv(heating_widemax_TFX_weather_holiday, "C:/Users/chris/Downloads/HotelamKurpark_2.HJ2020_heating_widemax_TFX_addData.csv")
 ```
 
 
