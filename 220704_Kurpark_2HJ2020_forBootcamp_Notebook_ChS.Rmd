@@ -391,16 +391,42 @@ Same chart as above, but data filtered so T and Td have to be larger than 10°C
 --> assumption: anything below not plausible (threshold of 10 to be discussed)
 
 ```{r}
-filter(heating_data_rooms, Room == "Zi1") %>%
-  filter(T > 10 & Td > 10) %>%
+filter(heating_data_rooms, Room == "Zi36") %>%
+  #filter(T > 10 & Td > 10) %>%
     ggplot(aes(x = Zeit)) +
       stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
       stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+      #stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
       ylab("Temperature") +
       xlab("Date") +
-      labs(title = "Mean T and Td of Zi 01 per point in time Hotel Kurpark") +
+      labs(title = "Mean T and Td of Zi 36 per point in time Hotel Kurpark") +
       scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
 ```
+
+```{r}
+#filter(heating_data_rooms, Room == "Zi18") %>%
+#  cor(as.numeric(heating_data_rooms$Td), as.numeric(heating_data_rooms$Val))
+```
+
+
+BOOTCAMP
+
+SUmmary
+```{r}
+filter(heating_data_rooms, Room == "Zi18") %>%
+  #filter(T > 10 & Td > 10) %>%
+  summary()
+```
+```{r}
+
+heating_data$Occ <- as.factor(heating_data$Occ)
+
+table(heating_data$Room, heating_data$Occ)
+
+summary(heating_data$Occ)
+```
+
+
 
 One filter less than above
 
@@ -442,23 +468,71 @@ Delta of T and Td + Mean Val per point in time, just Zi 01
 IDEA: Add external temperate to explain spikes!
 
 ```{r}
-filter(heating_data_rooms, Room == "Zi5") %>%
-  filter(T > 10 & Td > 10) %>%
+filter(heating_data_rooms, Room == "Zi36") %>%
+  filter(month == 11) %>%
     ggplot(aes(x = Zeit)) +
-    stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
-    geom_hline(yintercept=0, color = "black", size = 2) +
-    stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+    stat_summary(aes(y = Val, colour = "Val"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=T, colour = "T"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=exttemp, colour = "ext. Temp"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 1) +
     ylab("Temperature-Delta") +
     xlab("Date") +
     labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
-    scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
+    scale_color_manual("Legend", values = c("T" = "blue", "ext. Temp" = "green", "Val" = "red", "Td" = "purple"))
 ```
+
+New plot
+```{r}
+filter(heating_data_rooms, Room == "Zi36") %>%
+  filter(month == 11) %>%
+    ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=exttemp, colour = "ext. Temp"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=Win, colour = "Win"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 1) +
+    ylab("Temperature-Delta") +
+    xlab("Date") +
+    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("Td" = "blue", "ext. Temp" = "green", "Win" = "red"))
+```
+
+1/0 for Win
+```{r}
+heating_data_rooms["Win",] <- lapply(heating_data_rooms["Win",], as.integer)
+subtract1 <- function(x){
+  return(x-1)
+}
+heating_data_rooms$Win <- lapply(heating_data_rooms$Win, subtract1)
+```
+
+
+
+
+Add month
+```{r}
+heating_data_rooms$month <- as.factor(month(heating_data_rooms$Zeit))
+```
+
+Adding external temperature from DWD
+```{r}
+heating_data_rooms$Zeithour <- substr(heating_data_rooms$Zeit, 0, 13)
+heating_data_rooms$Zeithour <- fastPOSIXct(heating_data_rooms$Zeithour, required.components = 4)
+
+#Join with heating data
+heating_data_rooms <- left_join(heating_data_rooms, y = clim, by = "Zeithour")
+
+heating_data_rooms$exttemp <- heating_data_rooms$TT_TU.Lufttemperatur
+
+```
+
+
 
 Delta of T and Td per point in time, just Zi 01
 
 ```{r}
-filter(heating_data_rooms, Room == "Zi1") %>%
-  filter(T > 10 & Td > 10) %>%
+filter(heating_data_rooms, Room == "Zi36") %>%
+  filter(month == 11) %>%
   ggplot(aes(x = Zeit)) +
     stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
     geom_hline(yintercept=0, color = "black", size = 2) +
@@ -647,6 +721,566 @@ First try of Lasso --> not done and not checked yet!
 #lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
 #coef(lasso_model)
 ```
+
+BOOTCAMP
+
+Linear model on November data set
+
+```{r}
+
+wide_nov <- wide_data_Nov2020
+
+
+
+
+```
+
+```{r}
+
+wide_nov <- wide_nov %>%
+  mutate_if(is.character, as.factor)
+
+
+
+```
+
+
+```{r}
+wide_nov$X.1 <- NULL
+wide_nov$HotelID.x <- NULL
+wide_nov$Kessel_Leistung <- NULL
+wide_nov$BHKW_Leistung <- NULL
+```
+
+
+```{r}
+nas <- sapply(wide_nov, function(x) sum(is.na(x)))
+wide_nov[nas == 2880] <- NULL
+```
+
+
+```{r}
+not_unique <- function(wide_nov) length(unique(wide_nov)) > 1
+
+wide_nov2 <- wide_nov %>% 
+  select_if(not_unique)
+```
+
+```{r}
+
+wide_nov2$X <- NULL
+wide_nov2$Date <- NULL
+wide_nov2$Time <- NULL
+wide_nov2$X.1 <- NULL
+
+wide_nov2$BHKW_Leistung <- NULL
+wide_nov2$Kessel_Leistung <- NULL
+
+```
+
+```{r}
+wide_nov2 <- wide_nov2 %>%
+  mutate_if(is.character, as.factor)
+
+write.csv(wide_nov2, "C:/Users/chris/Downloads/wide_nov2.csv")
+```
+
+```{r}
+
+summary(wide_nov2$Td.Zi21.Bad)
+
+```
+
+
+```{r}
+
+lm1 <- lm(LeistungGesamt ~ ., data = wide_nov2)
+summary(lm1)
+
+
+```
+
+```{r}
+
+# Installing the package
+#install.packages("dplyr")
+
+# Loading package
+#library(dplyr)
+
+# Installing Packages
+#install.packages("dplyr")
+#install.packages("glmnet")
+#install.packages("ggplot2")
+#install.packages("caret")
+
+#library(dplyr)
+#library(glmnet)
+#library(ggplot2)
+#library(caret)
+
+# X and Y datasets
+#X <- wide_nov2 %>%
+ # select(LeistungGesamt) %>%
+ # scale(center = TRUE, scale = FALSE) %>%
+ # as.matrix()
+#Y <- wide_nov2 %>%
+ # select(-LeistungGesamt) %>%
+ # as.matrix()
+
+# Model Building : Elastic Net Regression
+#control <- trainControl(method = "repeatedcv",
+                     #   number = 5,
+                     #   repeats = 5,
+                     #   search = "random",
+                      #  verboseIter = TRUE)
+
+# Training ELastic Net Regression model
+#elastic_model <- train(LeistungGesamt ~ .,
+                 #      data = cbind(X, Y),
+                 #      method = "glmnet",
+                 #      preProcess = c("center", "scale"),
+                  #     tuneLength = 25,
+                 #      trControl = control)
+
+#elastic_model
+
+# Model Prediction
+#x_hat_pre <- predict(elastic_model, Y)
+#x_hat_pre
+
+# Multiple R-squared
+#rsq <- cor(X, x_hat_pre)^2
+#rsq
+
+# Plot
+#plot(elastic_model, main = "Elastic Net Regression")
+
+
+```
+
+Lasso in BOOTCAMP 
+
+True/False -> 0/1
+```{r}
+
+cols <- sapply(wide_nov2, is.logical)
+wide_nov3 <- wide_nov2
+wide_nov3[,cols] <- lapply(wide_nov2[,cols], as.numeric)
+
+```
+
+Data types
+```{r}
+
+wide_nov3 <- wide_nov3 %>%
+  mutate_if(is.factor, as.numeric)
+
+```
+
+Split into dependent and independent variables (x, y) and run Lasso
+
+```{r}
+
+y <- wide_nov3$LeistungGesamt
+x <- wide_nov3 %>%
+  select(-LeistungGesamt) %>%
+  as.matrix()
+
+library(glmnet)
+cv_model <- cv.glmnet(x, y, alpha = 1)
+best_lambda <-cv_model$lambda.min
+best_lambda
+
+plot(cv_model)
+
+lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(lasso_model)
+
+```
+
+Open point as NEXT STEP: Create train and test set to see model performance
+
+Predicting with lasso an train (!) data
+
+```{r}
+
+lasso_pred <- predict(lasso_model, x)
+
+lasso_result <- as.data.frame(cbind(wide_nov3$LeistungGesamt, lasso_pred))
+plot(lasso_result$V1, lasso_result$s0)
+
+```
+
+```{r}
+
+library(Metrics)
+rmse(wide_nov3$LeistungGesamt, lasso_pred)
+
+```
+
+
+BOOTCAMP Data Aggregation and adding of additional variables based on 
+findings from saturday
+
+1) Importing data set heating (Nov) aggregated on room level
+
+
+```{r}
+
+dfcs <- Heating_Data_Nov2020_Agg
+#summary(dfcs)
+
+dfcs$Room <- as.factor(dfcs$Room)
+dfcs$Occ <- as.factor(dfcs$Occ)
+dfcs$Win <- as.factor(dfcs$Win)
+
+#Creating subsets for each level of information (available on differen 
+# hierarchy levels)
+
+dfcs_building <- dfcs[dfcs$Room == "Build",]
+dfcs_room <- dfcs[dfcs$Room != "Build",]
+
+#Prepare each subset individually -> long to wide
+dfcs_building <- subset(dfcs_building, select = -c(Occ, T, Td, Val, Win, Room))
+dfcs_building$X <- NULL
+names(dfcs_building) <- c("Date", "Time", "ClIn.Build", "Text.Build")
+
+
+dfcs_room <- subset(dfcs_room, select = -c(Text, ClIn, X))
+#dfcs_room <- subset(dfcs_room, select = -c(Room, RoomType))
+#dfcs_room_wide <- spread(dfcs_room, key = "keylw", value = "Occ")
+
+
+#dfcs_roomtype_wide <- reshape(data = dfcs_roomtype, 
+#v.names = c("T", "Td", "Val", "Win"),
+# timevar = "keylw",
+#idvar = c("Zeit", "HotelID"),
+# direction = "wide")
+
+dfcs_room_wide <- pivot_wider(dfcs_room, names_from = "Room", 
+                                  values_from =  c("Occ", "T", "Td", "Val", "Win"),
+                                  names_sep = ".")
+
+dfcs_room_wide$datetime <- paste(dfcs_room_wide$Date, dfcs_room_wide$Time)
+dfcs_room_wide$datetime <- fastPOSIXct(dfcs_room_wide$datetime, required.components = 5L, tz = "utc" )
+
+dfcs_building$datetime <- paste(dfcs_building$Date, dfcs_building$Time)
+dfcs_building$datetime <- fastPOSIXct(dfcs_building$datetime, required.components = 5L, tz = "utc" )
+
+#merge wide subsets to entire data set, based on timestamp
+heating_widemax <- merge(dfcs_building, dfcs_room_wide, by = "datetime")
+
+heating_widemax <- subset(heating_widemax, select = -c(Date.x, Time.x))
+#summary(heating_widemax)
+
+#Save as csv
+write.csv(heating_widemax, "C:/Users/chris/Downloads/Heating_data_Nov2020_agg_widemax.csv")
+
+
+```
+
+2) Add TFX data
+
+```{r}
+
+TFX_all <- TFX_all_4
+
+
+#Subsetting, to only include Leistung from TFX file
+TFX_all <- subset(TFX_all, select = c(X, Kessel.1.2.Leistung, BHKW.1.4.Leistung))
+names(TFX_all) <- c("Zeit", "Kessel_Leistung", "BHKW_Leistung")
+TFX_all$Zeit <- fastPOSIXct(TFX_all$Zeit, required.components = 5L, tz = "utc")
+#summary(TFX_all)
+heating_widemax$Zeit <- heating_widemax$datetime
+
+
+#Left join keeps all rows from heating --> many NAs since dates don't overlap entirely
+heating_widemax_TFX <- heating_widemax %>% left_join(TFX_all, by = "Zeit")
+
+#heating_widemax_TFX <- heating_widemax_TFX %>% drop_na(Kessel_Leistung)
+#summary(heating_widemax_TFX$LeistungGesamt)
+
+#Optinal: create new column with Sum of Leistung. ATTENTION: if one column contains an NA, sum is NA!!
+#heating_widemax_TFX$LeistungGesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
+
+#Export to csv
+write.csv(heating_widemax_TFX, "C:/Users/chris/Downloads/Heating_data_Nov2020_agg_widemax_TFX.csv")
+
+```
+
+3) Data from DWD
+
+```{r}
+
+heating_widemax_TFX <- Heating_data_Nov2020_agg_widemax_TFX
+heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
+
+#Get weather data from DWD
+#ATTENTION: ZIP FILE DOWNLOADED TO WORKING DIRECTORY
+link <- selectDWD(id = findID(name = "Hersfeld, Bad", exactmatch = FALSE), res="hourly", var="air_temperature", per="h")
+file <- dataDWD(link, read=FALSE)
+clim <- readDWD(file, varnames=TRUE)
+
+clim$Zeithour <- fastPOSIXct(clim$MESS_DATUM, required.components = 6L, tz = "utc")
+
+heating_widemax_TFX$Zeithour <- substr(heating_widemax_TFX$Zeit, 0, 13)
+heating_widemax_TFX$Zeithour <- fastPOSIXct(heating_widemax_TFX$Zeithour, required.components = 4)
+
+
+```
+
+3.1) Calculate HDD
+
+```{r}
+
+clim$date <- fastDate(substr(clim$Zeit, 0, 10))
+#summary(clim)
+
+clim <- na.omit(clim)
+
+
+clim_agg <- aggregate(clim$TT_TU.Lufttemperatur, by = list(clim$date), FUN = "mean")
+
+names(clim_agg) <- c("Date", "Avg_Temp")
+colnames(heating_widemax_TFX)[4] <- "Date"
+
+clim_agg$HDD <- ifelse(clim_agg$Avg_Temp < 18, 1, 0)
+
+clim_agg$HDDindex <- ifelse(clim_agg$Avg_Temp < 18, (18-clim_agg$Avg_Temp), 0)
+
+
+heating_widemax_TFX_weather_HDD <- heating_widemax_TFX %>% left_join(clim_agg, by = "Date")
+
+
+
+```
+
+4) Add Public Holidays Feiertage
+
+```{r}
+
+#Fetch Feiertage
+# Change link if different country and/or year required!
+public_holidays <- jsonlite::fromJSON("https://date.nager.at/api/v2/publicholidays/2020/DE")
+
+public_holidays$Date <- public_holidays$date
+heating_widemax_TFX_weather_HDD$Date <- fastDate(substr(heating_widemax_TFX_weather_HDD$Zeit, 0, 10))
+public_holidays$Date <- fastDate(public_holidays$Date)
+
+#Join with heating data
+heating_widemax_TFX_weather_HDD_holiday <- left_join(heating_widemax_TFX_weather_HDD, y = public_holidays, by = "Date")
+#Replace NAs (no Holiday at date) with "kein Feiertag"
+heating_widemax_TFX_weather_HDD_holiday$localName[is.na(heating_widemax_TFX_weather_HDD_holiday$localName)] <- "kein Feiertag"
+
+
+heating_widemax_TFX_weather_HDD_holiday <- subset(heating_widemax_TFX_weather_HDD_holiday, select = -c(date, name, countryCode, fixed, global
+                                                                                                       , launchYear, counties, type))
+
+```
+
+5) Leistung Gesamt
+
+```{r}
+
+heating_widemax_TFX_weather_HDD_holiday$LeistungGesamt <- heating_widemax_TFX_weather_HDD_holiday$Kessel_Leistung + heating_widemax_TFX_weather_HDD_holiday$BHKW_Leistung
+
+```
+
+
+6) Weekend and Weekday
+
+```{r}
+
+heating_widemax_TFX_weather_HDD_holiday$weekday <- as.factor(weekdays(heating_widemax_TFX_weather_HDD_holiday$Date))
+heating_widemax_TFX_weather_HDD_holiday[heating_widemax_TFX_weather_HDD_holiday$weekday == "Samstag" | heating_widemax_TFX_weather_HDD_holiday$weekday ==  "Sonntag", "weekend"] <- 1
+heating_widemax_TFX_weather_HDD_holiday[heating_widemax_TFX_weather_HDD_holiday$weekday == "Montag" | heating_widemax_TFX_weather_HDD_holiday$weekday ==  "Dienstag" | heating_widemax_TFX_weather_HDD_holiday$weekday ==  "Mittwoch" | 
+                          heating_widemax_TFX_weather_HDD_holiday$weekday ==  "Donnerstag" | heating_widemax_TFX_weather_HDD_holiday$weekday ==  "Freitag", "weekend"] <- 0
+
+heating_widemax_TFX_weather_HDD_holiday$weekend <- as.integer(heating_widemax_TFX_weather_HDD_holiday$weekend)
+
+
+```
+
+7) Outside Temperature
+
+```{r}
+
+heating_widemax_TFX_weather_HDD_holiday <- left_join(heating_widemax_TFX_weather_HDD_holiday, y = clim, by = "Zeithour")
+
+heating_widemax_TFX_weather_HDD_holiday <- subset(heating_widemax_TFX_weather_HDD_holiday, select = -c(STATIONS_ID, MESS_DATUM, QN_9, eor))
+
+
+
+```
+
+
+8) Auslastung / Auslastungsquote
+
+!!! Currently in Occ 0 = n/a, 1 = False and 2 = True --> OccSum and OccRate not plausible
+
+```{r}
+
+heating_final <- heating_widemax_TFX_weather_HDD_holiday
+
+heating_final$OccSum <- rowSums(heating_final[grepl("Occ", names(heating_final))])
+heating_final$OccRate <- heating_final$OccSum/sum(grepl("Occ", names(heating_final)))
+
+summary(heating_final$OccRate)
+```
+
+```{r}
+
+write.csv(heating_final, "C:/Users/chris/Downloads/Heating_data_Nov2020_agg_widemax_TFX_addData.csv", row.names = FALSE)
+
+```
+
+
+MODELLING WITH AGGREGATED DATA SET
+
+1) Data cleansing and reduce number of columns
+
+```{r}
+data <- heating_final
+
+data <- subset(data, select = -c(datetime, Date, Kessel_Leistung, BHKW_Leistung, Zeithour, Avg_Temp, date, OccSum, OccRate))
+data <- subset(data, select = -c(Zeit))
+```
+
+
+Train test split of "final" data set 
+Seed 42
+
+```{r}
+
+set.seed(42)
+
+alpha <- 0.8 #Percentage of the training set
+inTrain   <- sample(1:nrow(data), alpha * nrow(data))
+train.set <- data[inTrain,]
+test.set  <- data[-inTrain,]
+
+
+```
+
+Kick out date and Holiday (localName) for now, have to be converted to numeric factors!!
+
+```{r}
+train.set <- subset(train.set, select = -c(localName, Time.y))
+
+
+```
+
+
+Dataformatting
+
+```{r}
+
+
+
+```
+```{r}
+
+train.set <- train.set %>%
+  mutate_if(is.factor, as.numeric)
+
+```
+
+
+
+2) Split y and y + run lasso
+
+```{r}
+
+y <- train.set$LeistungGesamt
+x <- train.set %>%
+  select(-LeistungGesamt) %>%
+  as.matrix()
+
+library(glmnet)
+cv_model <- cv.glmnet(x, y, alpha = 1)
+best_lambda <-cv_model$lambda.min
+best_lambda
+
+plot(cv_model)
+
+lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(lasso_model)
+
+
+```
+
+--> Occ and Win should be 0 and 1 (and n/a) instead of 1,2,3
+
+Normalizing data!
+
+```{r}
+summary(train.set$T.Zi9)
+
+```
+```{r}
+summary(train.set$Val.Zi9)
+```
+
+```{r}
+cor(train.set$T.Zi9, train.set$LeistungGesamt)
+```
+
+```{r}
+
+df <- Heating_Data_Nov2020_Agg
+
+df$Zeit <- df$Date
+df <- df %>% left_join(TFX_all, by = "Zeit")
+
+df$LeistungGesamt <- df$Kessel_Leistung + df$BHKW_Leistung
+
+ggplot(data = train.set, aes(x = Td.Zi9, y = LeistungGesamt)) +
+  geom_point()
+
+```
+
+```{r}
+
+```
+
+
+
+```{r}
+
+
+test.set <- test.set  %>%
+  mutate_if(is.factor, as.numeric)
+
+test.set  <- subset(test.set , select = -c(localName, Time.y))
+
+
+
+y <- test.set $LeistungGesamt
+x <- test.set  %>%
+  select(-LeistungGesamt) %>%
+  as.matrix()
+
+
+
+lasso_pred <- predict(lasso_model, x)
+
+lasso_result <- as.data.frame(cbind(test.set$LeistungGesamt, lasso_pred))
+plot(lasso_result$V1, lasso_result$s0)
+
+
+```
+
+
+```{r}
+
+library(Metrics)
+rmse(test.set$LeistungGesamt, lasso_pred)
+
+```
+
+
+
 Fabians Area
 
 
