@@ -391,7 +391,7 @@ both time and RoomType
 ```
 
 
-Function feature engineering
+Function feature engineering: work in progress!
 
 ```{r}
 
