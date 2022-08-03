@@ -6,6 +6,8 @@ output:
 
 ---
 
+# 0 - General
+
 ```{r setup}
 library(knitr)
 knitr::opts_knit$set(root.dir = normalizePath("C:/Users/chris/Betterspace GmbH/Team Mannheim Business School - Dokumente/General/04_Data & Analysis/01_Data/Hotel am Kurpark_2981"))
@@ -81,6 +83,8 @@ for (i in 1:length(list)){
 
 Christians Area
 
+# 1 - Data preparation
+
 -- LIST OF FUNCTIONS --
 
 1) merge_heating(): Merges single files per room with heating data into one data
@@ -99,6 +103,8 @@ over roomTypes)
 
 
 -- END: LIST OF FUNCTIONS --
+
+## 1.1 - Merging and changing format to wide
 
 Merge Code
 This code merges all heating-data files (one per room) into one central file 
@@ -352,6 +358,7 @@ create_widemax_TFX_agg <- function(heating_long_agg, TFX_input){
 
 ```
 
+## 1.2 - Aggregation over room Types
 
 Aggregate function over rooms: !! Check binary variables Occ and Win !!
 Check ways to summarise and NAs that result!
@@ -382,14 +389,7 @@ aggregate_room <- function(data_long){
 
 ```
 
-To be added: Function to aggregate over time (hourly data) and to aggregate over 
-both time and RoomType
-
-```{r}
-
-
-```
-
+## 1.3 - Feature engineering and add. data
 
 Function feature engineering: work in progress!
 
@@ -427,6 +427,8 @@ feature_eng <- function(dataset){
   
   ## 4: month, week, time of day, season
   
+  #heating_data_rooms$month <- as.factor(month(heating_data_rooms$Zeit))
+  
   
   ## 5: Guest room or common area
 
@@ -434,39 +436,11 @@ feature_eng <- function(dataset){
 
 ```
 
-Check feature eng
+Function external data: WIP
 
 ```{r}
 
-feature_eng(HotelamKurpark_2.HJ2020_heating_widemax_TFX)
-
-```
-
-```{r}
-
-
-
-
-```
-
-
-
-```{r}
-
-
-```
-
-
-
-
-
-
-Feature engineering and external data
-
-1) Add weather data from DWD
-ATTENTION: weather data is available on an hourly basis --> 4x same value in resulting df
-
-```{r}
+#Weather data from DWD
 
 heating_widemax_TFX <- HotelamKurpark_2.HJ2020_heating_widemax
 heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
@@ -489,11 +463,8 @@ ggplot(data = heating_widemax_TFX_weather, aes(x = Zeit, y = TT_TU.Lufttemperatu
 
 plot(heating_widemax_TFX_weather$Zeit, heating_widemax_TFX_weather$TT_TU.Lufttemperatur)
 
-```
+# Pubblic holidays
 
-2) Add Public Holidays
-
-```{r}
 #Fetch Feiertage
 # Change link if different country and/or year required!
 public_holidays <- jsonlite::fromJSON("https://date.nager.at/api/v2/publicholidays/2020/DE")
@@ -507,218 +478,14 @@ heating_widemax_TFX_weather_holiday <- left_join(heating_widemax_TFX_weather, y 
 #Replace NAs (no Holiday at date) with "kein Feiertag"
 heating_widemax_TFX_weather_holiday$localName[is.na(heating_widemax_TFX_weather_holiday$localName)] <- "kein Feiertag"
 
-```
-
-3) Add energy cost data
-
-```{r}
-#Download energy cost data from link in relevant time frame, then import to R directory
-#Link: https://www.smard.de/home/downloadcenter/download-marktdaten#!?downloadAttributes=%7B%22selectedCategory%22:3,%22selectedSubCategory%22:8,%22selectedRegion%22:%22DE%22,%22from%22:1590962400000,%22to%22:1609455599999,%22selectedFileType%22:%22CSV%22%7D
-
-energy_cost <- Gro_handelspreise_202001010000_202005312359
-#Change column name without ".x"!!!
-energy_cost$Zeit.x <- fastPOSIXct(energy_cost$Datetime, required.components = 5L, tz = "cest")
-
-heating_widemax_TFX_weather_holiday_ecosts <- left_join(heating_widemax_TFX_weather_holiday, y = energy_cost, by = "Zeit.x")
-```
-
-Feature engineering
-
-```{r}
-heating_widemax_TFX_weather_holiday$Date <- fastDate(substr(heating_widemax_TFX_weather_holiday$Zeit, 0, 10))
-heating_widemax_TFX_weather_holiday$weekday <- as.factor(weekdays(heating_widemax_TFX_weather_holiday$Date))
-heating_widemax_TFX_weather_holiday[heating_widemax_TFX_weather_holiday$weekday == "Samstag" | heating_widemax_TFX_weather_holiday$weekday ==  "Sonntag", "weekend"] <- 1
-heating_widemax_TFX_weather_holiday[heating_widemax_TFX_weather_holiday$weekday == "Montag" | heating_widemax_TFX_weather_holiday$weekday ==  "Dienstag" | heating_widemax_TFX_weather_holiday$weekday ==  "Mittwoch" | 
-                          heating_widemax_TFX_weather_holiday$weekday ==  "Donnerstag" | heating_widemax_TFX_weather_holiday$weekday ==  "Freitag", "weekend"] <- 0
-
-heating_widemax_TFX_weather_holiday$weekend <- as.integer(heating_widemax_TFX_weather_holiday$weekend)
 
 ```
 
 
+## 1.4 - Backlog
 
+Turn Window detection to 1 and 0
 
-Save as csv (heating wide max + add. data)
-
-```{r}
-
-#Clear rows
-
-heating_widemax_TFX_weather_holiday$STATIONS_ID <- NULL
-heating_widemax_TFX_weather_holiday$QN_9 <- NULL
-heating_widemax_TFX_weather_holiday$eor <- NULL
-heating_widemax_TFX_weather_holiday$fixed <- NULL
-heating_widemax_TFX_weather_holiday$global <- NULL
-heating_widemax_TFX_weather_holiday$counties <- NULL
-heating_widemax_TFX_weather_holiday$launchYear <- NULL
-heating_widemax_TFX_weather_holiday$type <- NULL
-
-#Export to csv
-write.csv(heating_widemax_TFX_weather_holiday, "C:/Users/chris/Downloads/HotelamKurpark_2.HJ2020_heating_widemax_TFX_addData.csv")
-```
-
-
-
-Data Exploration of raw heating data 
-
-```{r}
-#Import heating data, without TFX information
-heating_data <- HotelamKurpark_2.HJ2020_heating
-heating_data$Zeit <- fastPOSIXct(heating_data$Zeit, required.components = 5L)
-summary(heating_data)
-```
-Some data preparation for data exploration
-
-```{r}
-#Drop ClIn and Text (for now, maybe analyze separately)
-heating_data$ClIn <- NULL
-heating_data$Text <- NULL
-
-#Subsetting to only include guest rooms, not general ones
-#Assumption: general rooms to be viewd as "fixed basic energy usage" with 
-#no significant impact on change in energy consumption --> focus on guest rooms
-heating_data_rooms <- subset(heating_data, grepl("Zi", heating_data$Room))
-
-#Drop Occupancy, since its only available on level room instead of roomType 
-#-> DISCUSS handling NAs
-heating_data_rooms$Occ <- NULL
-#summary(heating_data_rooms)
-heating_data_rooms$Room <- as.factor(heating_data_rooms$Room)
-heating_data_rooms$RoomType <- as.factor(heating_data_rooms$RoomType)
-heating_data_rooms$Zeit <- fastPOSIXct(heating_data_rooms$Zeit, required.components = 5L)
-heating_data_rooms$Win <- as.factor(heating_data_rooms$Win)
-
-#remove all N/A's (entire rows!)
-#Adjust selection in na.omit when only focussing one certain columns to not delete too much!!
-heating_data_rooms <- na.omit(heating_data_rooms)
-summary(heating_data_rooms)
-```
-Plot all data points T over time
-```{r}
-ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
-  geom_point()
-```
-
-Plot mean Temperature over all rooms per point in time
-```{r}
-ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
-  stat_summary(aes(y = T), fun = "mean", geom = "line", colour = "red") +
-  stat_summary(aes(y=Td), fun = "mean", geom = "line", colour = "blue") +
-  scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
-
-```
-
-Same chart as above, but data filtered so T and Td have to be larger than 10°C
---> assumption: anything below not plausible (threshold of 10 to be discussed)
-
-```{r}
-filter(heating_data_rooms, Room == "Zi36") %>%
-  #filter(T > 10 & Td > 10) %>%
-    ggplot(aes(x = Zeit)) +
-      stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
-      stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
-      #stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
-      ylab("Temperature") +
-      xlab("Date") +
-      labs(title = "Mean T and Td of Zi 36 per point in time Hotel Kurpark") +
-      scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
-```
-
-```{r}
-#filter(heating_data_rooms, Room == "Zi18") %>%
-#  cor(as.numeric(heating_data_rooms$Td), as.numeric(heating_data_rooms$Val))
-```
-
-
-BOOTCAMP
-
-SUmmary
-```{r}
-filter(heating_data_rooms, Room == "Zi18") %>%
-  #filter(T > 10 & Td > 10) %>%
-  summary()
-```
-```{r}
-
-heating_data$Occ <- as.factor(heating_data$Occ)
-
-table(heating_data$Room, heating_data$Occ)
-
-summary(heating_data$Occ)
-```
-
-
-
-One filter less than above
-
-```{r}
-filter(heating_data_rooms, T > 10 & Td > 10) %>%
-  ggplot(aes(x = Zeit)) +
-  stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
-  stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
-  ylab("Temperature") +
-  xlab("Date") +
-  labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
-  scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
-```
-
-Check plot: aggregate: Mean Temperature per point in time
-#aggregate(heating_data_rooms$T, by = list(heating_data_rooms$Zeit), FUN = "mean")
-#aggregate(heating_data_rooms$Td, by = list(heating_data_rooms$Zeit), FUN = "mean")
-
-Create new column that calculates delta in temperature
-```{r}
-heating_data_rooms$TempDelta <- heating_data_rooms$T - heating_data_rooms$Td
-```
-
-Delta of T and Td + Mean Val per point in time
-```{r}
-filter(heating_data_rooms, T > 10 & Td > 10) %>%
-  ggplot(aes(x = Zeit)) +
-  stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
-  geom_hline(yintercept=0, color = "black", size = 2) +
-  stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
-  ylab("Temperature-Delta") +
-  xlab("Date") +
-  labs(title = "Mean Delta of T and Td (T-Td) over all rooms per point in time Hotel Kurpark") +
-  scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
-```
-
-
-Delta of T and Td + Mean Val per point in time, just Zi 01
-IDEA: Add external temperate to explain spikes!
-
-```{r}
-filter(heating_data_rooms, Room == "Zi36") %>%
-  filter(month == 11) %>%
-    ggplot(aes(x = Zeit)) +
-    stat_summary(aes(y = Val, colour = "Val"), fun = "mean", geom = "line") +
-    stat_summary(aes(y=T, colour = "T"), fun = "mean", geom = "line") +
-    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
-    stat_summary(aes(y=exttemp, colour = "ext. Temp"), fun = "mean", geom = "line") +
-    geom_hline(yintercept=0, color = "black", size = 1) +
-    ylab("Temperature-Delta") +
-    xlab("Date") +
-    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
-    scale_color_manual("Legend", values = c("T" = "blue", "ext. Temp" = "green", "Val" = "red", "Td" = "purple"))
-```
-
-New plot
-```{r}
-filter(heating_data_rooms, Room == "Zi36") %>%
-  filter(month == 11) %>%
-    ggplot(aes(x = Zeit)) +
-    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
-    stat_summary(aes(y=exttemp, colour = "ext. Temp"), fun = "mean", geom = "line") +
-    stat_summary(aes(y=Win, colour = "Win"), fun = "mean", geom = "line") +
-    geom_hline(yintercept=0, color = "black", size = 1) +
-    ylab("Temperature-Delta") +
-    xlab("Date") +
-    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
-    scale_color_manual("Legend", values = c("Td" = "blue", "ext. Temp" = "green", "Win" = "red"))
-```
-
-1/0 for Win
 ```{r}
 heating_data_rooms["Win",] <- lapply(heating_data_rooms["Win",], as.integer)
 subtract1 <- function(x){
@@ -729,411 +496,17 @@ heating_data_rooms$Win <- lapply(heating_data_rooms$Win, subtract1)
 
 
 
-
-Add month
-```{r}
-heating_data_rooms$month <- as.factor(month(heating_data_rooms$Zeit))
-```
-
-Adding external temperature from DWD
-```{r}
-heating_data_rooms$Zeithour <- substr(heating_data_rooms$Zeit, 0, 13)
-heating_data_rooms$Zeithour <- fastPOSIXct(heating_data_rooms$Zeithour, required.components = 4)
-
-#Join with heating data
-heating_data_rooms <- left_join(heating_data_rooms, y = clim, by = "Zeithour")
-
-heating_data_rooms$exttemp <- heating_data_rooms$TT_TU.Lufttemperatur
-
-```
-
-
-
-Delta of T and Td per point in time, just Zi 01
+Add energy cost data
 
 ```{r}
-filter(heating_data_rooms, Room == "Zi36") %>%
-  filter(month == 11) %>%
-  ggplot(aes(x = Zeit)) +
-    stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
-    geom_hline(yintercept=0, color = "black", size = 2) +
-    ylab("Temperature-Delta") +
-    xlab("Date") +
-    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
-    scale_color_manual("Legend", values = c("Delta T and Td" = "blue"))
-```
+#Download energy cost data from link in relevant time frame, then import to R directory
+#Link: https://www.smard.de/home/downloadcenter/download-marktdaten#!?downloadAttributes=%7B%22selectedCategory%22:3,%22selectedSubCategory%22:8,%22selectedRegion%22:%22DE%22,%22from%22:1590962400000,%22to%22:1609455599999,%22selectedFileType%22:%22CSV%22%7D
 
-Aggregation for exploration
+energy_cost <- Gro_handelspreise_202001010000_202005312359
+#Change column name without ".x"!!!
+energy_cost$Zeit.x <- fastPOSIXct(energy_cost$Datetime, required.components = 5L, tz = "cest")
 
-```{r}
-df2 <- heating_data_rooms %>%
-  group_by(Zeit, Room) %>%
-  summarise_at(c("TempDelta", "Val"), mean)
-
-#Correlation of T and Val per Room (mean over time)
-df2_cor <- df2 %>%
-  group_by(Room) %>%
-  summarise(r = cor(TempDelta, Val))
-
-df2_cor
-```
-
-Moddeling with heating_widemax_TFX-dataset
-
-```{r}
-heating_widemax_TFX <- HotelamKurpark_2.HJ2020_heating_widemax_TFX
-
-#summary(heating_widemax_TFX)
-heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
-
-#Plot Kessel_Leistung over time
-ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Kessel_Leistung)) +
-         geom_line()
-```
-
-Plot all.Build over time --> = Temperature??
-
-```{r}
-ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Text.all.Build)) +
-  geom_line()
-```
-
-Plot Gesamt_Leistung over time
-
-```{r}
-heating_widemax_TFX$Gesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
-heating_widemax_TFX <- subset(heating_widemax_TFX, select = -c(Kessel_Leistung, BHKW_Leistung))
-
-ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Gesamt)) +
-        geom_line()
-plot(heating_widemax_TFX$Gesamt)
-```
-
-subset only containing occupancy data
-
-```{r}
-
-heating_widemax_TFX_Occ <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
-heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, as.factor)
-
-#remove "general" rooms since they are assumed to have to influence in change in temp
-# -> basis that never changes
-# remove columns with nas --> IDEA: can this be done automatically
-
-heating_widemax_TFX_Occ$Occ.Build.all <- NULL
-heating_widemax_TFX_Occ$Occ.TGRhoenI.all <- NULL
-heating_widemax_TFX_Occ$Occ.TGRhoenII.all <-  NULL
-heating_widemax_TFX_Occ$Occ.TGRhoenIII.all <- NULL
-heating_widemax_TFX_Occ$Occ.TGVogelsberg.all <- NULL
-heating_widemax_TFX_Occ$Occ.Zi18.all <- NULL
-heating_widemax_TFX_Occ$Occ.Zi9A.all <- NULL
-heating_widemax_TFX_Occ$Occ.TGVogelsberg.all <- NULL
-
-#subtract 1 from each value in df1 since true = 2 and false = 1
-heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, as.integer)
-subtract1 <- function(x){
-  return(x-1)
-}
-heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, subtract1)
-heating_widemax_TFX_Occ <- cbind(heating_widemax_TFX_Occ, heating_widemax_TFX$Zeit)
-summary(heating_widemax_TFX_Occ)
-```
-
-Plot Auslastung over time
-
-```{r}
-heating_widemax_TFX_Occ$AuslastungSum <- rowSums(heating_widemax_TFX_Occ[,0:35])
-ggplot(data = heating_widemax_TFX_Occ, aes(x = heating_widemax_TFX$Zeit, y = AuslastungSum)) +
-  geom_line()
-```
-
-Plot Auslastungsquote over time
-```{r}
-#Quote
-heating_widemax_TFX_Occ$Auslastungsquote <- heating_widemax_TFX_Occ$AuslastungSum/35
-ggplot(data = heating_widemax_TFX_Occ, aes(x = heating_widemax_TFX$Zeit, y = Auslastungsquote)) +
-  geom_line()
-```
-
-```{r}
-heating_widemax_TFX_Occ$Date <- fastDate(substr(heating_widemax_TFX_Occ$`heating_widemax_TFX$Zeit`, 0, 10))
-heating_widemax_TFX_Occ$weekday <- as.factor(weekdays(heating_widemax_TFX_Occ$Date))
-heating_widemax_TFX_Occ[heating_widemax_TFX_Occ$weekday == "Samstag" | heating_widemax_TFX_Occ$weekday ==  "Sonntag", "weekend"] <- 1
-heating_widemax_TFX_Occ[heating_widemax_TFX_Occ$weekday == "Montag" | heating_widemax_TFX_Occ$weekday ==  "Dienstag" | heating_widemax_TFX_Occ$weekday ==  "Mittwoch" | 
-                          heating_widemax_TFX_Occ$weekday ==  "Donnerstag" | heating_widemax_TFX_Occ$weekday ==  "Freitag", "weekend"] <- 0
-
-heating_widemax_TFX_Occ$weekend <- as.integer(heating_widemax_TFX_Occ$weekend)
-cor(heating_widemax_TFX_Occ$Auslastungsquote, heating_widemax_TFX_Occ$weekend)
-```
-
-BarChart with mean Auslastungsquote per Weekday
-
-```{r}
-meanAuslastungsquote <- aggregate(heating_widemax_TFX_Occ$Auslastungsquote, list(heating_widemax_TFX_Occ$weekday), mean)
-ggplot(meanAuslastungsquote, aes(Group.1, x)) +
-  geom_bar(stat = "identity")
-```
-
-Boxplot with mean Auslastungsquote per Weekday
-
-```{r}
-ggplot(heating_widemax_TFX_Occ, aes(x = factor(weekday), y = Auslastungsquote)) + 
-  geom_boxplot()
-```
-
-Add TFX-energy usage data to subset
-
-```{r}
-
-heating_widemax_TFX_Occ <- cbind(heating_widemax_TFX_Occ, heating_widemax_TFX$LeistungGesamt)
-colnames(heating_widemax_TFX_Occ)[which(names(heating_widemax_TFX_Occ) == "heating_widemax_TFX$LeistungGesamt")] <- "LeistungGesamt"
-colnames(heating_widemax_TFX_Occ)[which(names(heating_widemax_TFX_Occ) == "heating_widemax_TFX$Zeit")] <- "Zeit"
-
-heating_widemax_TFX_Occ$month <- as.factor(month(heating_widemax_TFX_Occ$Zeit))
-heating_widemax_TFX_Occ$week <- as.factor(week(heating_widemax_TFX_Occ$Zeit))
-
-ggplot(heating_widemax_TFX_Occ, aes(x = Zeit, y = LeistungGesamt)) +
-  geom_line()
-```
-
-Plot mean Leistung per week (attention: week 1 is following year)
-Remark: 2nd axis for mean Auslastungsquote, AQ is still plotted in 1st axis 
---> *100 and /100 to make impression of fit to 2nd axis
-
-```{r}
-heating_widemax_TFX_Occ %>%
-  group_by(week) %>%
-    summarise(mean_Leistung_week = mean(LeistungGesamt), meanAuslastungWeek = mean(Auslastungsquote)) %>%
-      ggplot() + 
-        geom_bar(aes(x = week, y = mean_Leistung_week), stat = "identity", fill = "grey") + 
-        labs(title = "Mean Leistung and Auslastungsquote per week, 2. HJ 2020, Hotel Kurpark") +
-        geom_line(aes(x = week, y = meanAuslastungWeek*100), group = 1, color = "black", size = 1)  +
-        scale_y_continuous(name = "Mean Leistung per Week", 
-                           sec.axis = sec_axis(~. /100, name = "Mean Auslastungsquote per week"))
-```
-
-CHECK!!! mean Auslastungsquote?
-
-```{r}
-heating_widemax_TFX_Occ %>%
-  filter(month == "11") %>%
-    ggplot() + 
-    geom_bar(aes(x = Date, y = LeistungGesamt), stat = "identity", fill = "grey") + 
-    labs(title = "Sum Leistung and Auslastungsquote, 2. HJ 2020, Hotel Kurpark") +
-    geom_line(aes(x = Date, y = Auslastungsquote*6000), group = 1, color = "black", size = 1)  +
-    scale_y_continuous(name = "Summe Leistung", 
-                       sec.axis = sec_axis(~. /6000, name = "Auslastungsquote"))
-
-```
-
-First try of Lasso --> not done and not checked yet!
-
-```{r}
-#y <- df1$`heating_widemax_TFX$Gesamt`
-#x <- data.matrix(df1[, c(2:36)])
-
-#library(glmnet)
-#cv_model <- cv.glmnet(x, y, alpha = 1)
-#best_lambda <-cv_model$lambda.min
-#best_lambda
-
-#plot(cv_model)
-
-#lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
-#coef(lasso_model)
-```
-
-BOOTCAMP
-
-Linear model on November data set
-
-```{r}
-
-wide_nov <- wide_data_Nov2020
-
-
-```
-
-```{r}
-
-wide_nov <- wide_nov %>%
-  mutate_if(is.character, as.factor)
-
-```
-
-
-```{r}
-wide_nov$X.1 <- NULL
-wide_nov$HotelID.x <- NULL
-wide_nov$Kessel_Leistung <- NULL
-wide_nov$BHKW_Leistung <- NULL
-```
-
-
-```{r}
-nas <- sapply(wide_nov, function(x) sum(is.na(x)))
-wide_nov[nas == 2880] <- NULL
-```
-
-
-```{r}
-not_unique <- function(wide_nov) length(unique(wide_nov)) > 1
-
-wide_nov2 <- wide_nov %>% 
-  select_if(not_unique)
-```
-
-```{r}
-
-wide_nov2$X <- NULL
-wide_nov2$Date <- NULL
-wide_nov2$Time <- NULL
-wide_nov2$X.1 <- NULL
-
-wide_nov2$BHKW_Leistung <- NULL
-wide_nov2$Kessel_Leistung <- NULL
-
-```
-
-```{r}
-wide_nov2 <- wide_nov2 %>%
-  mutate_if(is.character, as.factor)
-
-write.csv(wide_nov2, "C:/Users/chris/Downloads/wide_nov2.csv")
-```
-
-```{r}
-
-summary(wide_nov2$Td.Zi21.Bad)
-
-```
-
-
-```{r}
-
-lm1 <- lm(LeistungGesamt ~ ., data = wide_nov2)
-summary(lm1)
-
-
-```
-
-```{r}
-
-# Installing the package
-#install.packages("dplyr")
-
-# Loading package
-#library(dplyr)
-
-# Installing Packages
-#install.packages("dplyr")
-#install.packages("glmnet")
-#install.packages("ggplot2")
-#install.packages("caret")
-
-#library(dplyr)
-#library(glmnet)
-#library(ggplot2)
-#library(caret)
-
-# X and Y datasets
-#X <- wide_nov2 %>%
- # select(LeistungGesamt) %>%
- # scale(center = TRUE, scale = FALSE) %>%
- # as.matrix()
-#Y <- wide_nov2 %>%
- # select(-LeistungGesamt) %>%
- # as.matrix()
-
-# Model Building : Elastic Net Regression
-#control <- trainControl(method = "repeatedcv",
-                     #   number = 5,
-                     #   repeats = 5,
-                     #   search = "random",
-                      #  verboseIter = TRUE)
-
-# Training ELastic Net Regression model
-#elastic_model <- train(LeistungGesamt ~ .,
-                 #      data = cbind(X, Y),
-                 #      method = "glmnet",
-                 #      preProcess = c("center", "scale"),
-                  #     tuneLength = 25,
-                 #      trControl = control)
-
-#elastic_model
-
-# Model Prediction
-#x_hat_pre <- predict(elastic_model, Y)
-#x_hat_pre
-
-# Multiple R-squared
-#rsq <- cor(X, x_hat_pre)^2
-#rsq
-
-# Plot
-#plot(elastic_model, main = "Elastic Net Regression")
-
-
-```
-
-Lasso in BOOTCAMP 
-
-True/False -> 0/1
-```{r}
-
-cols <- sapply(wide_nov2, is.logical)
-wide_nov3 <- wide_nov2
-wide_nov3[,cols] <- lapply(wide_nov2[,cols], as.numeric)
-
-```
-
-Data types
-```{r}
-
-wide_nov3 <- wide_nov3 %>%
-  mutate_if(is.factor, as.numeric)
-
-```
-
-Split into dependent and independent variables (x, y) and run Lasso
-
-```{r}
-
-y <- wide_nov3$LeistungGesamt
-x <- wide_nov3 %>%
-  select(-LeistungGesamt) %>%
-  as.matrix()
-
-library(glmnet)
-cv_model <- cv.glmnet(x, y, alpha = 1)
-best_lambda <-cv_model$lambda.min
-best_lambda
-
-plot(cv_model)
-
-lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
-coef(lasso_model)
-
-```
-
-Open point as NEXT STEP: Create train and test set to see model performance
-
-Predicting with lasso an train (!) data
-
-```{r}
-
-lasso_pred <- predict(lasso_model, x)
-
-lasso_result <- as.data.frame(cbind(wide_nov3$LeistungGesamt, lasso_pred))
-plot(lasso_result$V1, lasso_result$s0)
-
-```
-
-```{r}
-
-library(Metrics)
-rmse(wide_nov3$LeistungGesamt, lasso_pred)
-
+heating_widemax_TFX_weather_holiday_ecosts <- left_join(heating_widemax_TFX_weather_holiday, y = energy_cost, by = "Zeit.x")
 ```
 
 
@@ -1352,8 +725,823 @@ write.csv(heating_final, "C:/Users/chris/Downloads/Heating_data_Nov2020_agg_wide
 
 ```
 
+# 3 - Data exploration
 
-MODELLING WITH AGGREGATED DATA SET
+DATA EXPLORATION
+
+Data Exploration of raw heating data 
+
+```{r}
+#Import heating data, without TFX information
+heating_data <- HotelamKurpark_2.HJ2020_heating
+heating_data$Zeit <- fastPOSIXct(heating_data$Zeit, required.components = 5L)
+summary(heating_data)
+```
+Some data preparation for data exploration
+
+```{r}
+#Drop ClIn and Text (for now, maybe analyze separately)
+heating_data$ClIn <- NULL
+heating_data$Text <- NULL
+
+#Subsetting to only include guest rooms, not general ones
+#Assumption: general rooms to be viewd as "fixed basic energy usage" with 
+#no significant impact on change in energy consumption --> focus on guest rooms
+heating_data_rooms <- subset(heating_data, grepl("Zi", heating_data$Room))
+
+#Drop Occupancy, since its only available on level room instead of roomType 
+#-> DISCUSS handling NAs
+heating_data_rooms$Occ <- NULL
+#summary(heating_data_rooms)
+heating_data_rooms$Room <- as.factor(heating_data_rooms$Room)
+heating_data_rooms$RoomType <- as.factor(heating_data_rooms$RoomType)
+heating_data_rooms$Zeit <- fastPOSIXct(heating_data_rooms$Zeit, required.components = 5L)
+heating_data_rooms$Win <- as.factor(heating_data_rooms$Win)
+
+#remove all N/A's (entire rows!)
+#Adjust selection in na.omit when only focussing one certain columns to not delete too much!!
+heating_data_rooms <- na.omit(heating_data_rooms)
+summary(heating_data_rooms)
+```
+Plot all data points T over time
+```{r}
+ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
+  geom_point()
+```
+
+Plot mean Temperature over all rooms per point in time
+```{r}
+ggplot(data = heating_data_rooms, aes(x = Zeit, y = T)) +
+  stat_summary(aes(y = T), fun = "mean", geom = "line", colour = "red") +
+  stat_summary(aes(y=Td), fun = "mean", geom = "line", colour = "blue") +
+  scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+
+```
+
+Same chart as above, but data filtered so T and Td have to be larger than 10°C
+--> assumption: anything below not plausible (threshold of 10 to be discussed)
+
+```{r}
+filter(heating_data_rooms, Room == "Zi36") %>%
+  #filter(T > 10 & Td > 10) %>%
+    ggplot(aes(x = Zeit)) +
+      stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
+      stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+      #stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+      ylab("Temperature") +
+      xlab("Date") +
+      labs(title = "Mean T and Td of Zi 36 per point in time Hotel Kurpark") +
+      scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+```
+
+```{r}
+#filter(heating_data_rooms, Room == "Zi18") %>%
+#  cor(as.numeric(heating_data_rooms$Td), as.numeric(heating_data_rooms$Val))
+```
+
+
+SUmmary
+```{r}
+filter(heating_data_rooms, Room == "Zi18") %>%
+  #filter(T > 10 & Td > 10) %>%
+  summary()
+```
+```{r}
+
+heating_data$Occ <- as.factor(heating_data$Occ)
+
+table(heating_data$Room, heating_data$Occ)
+
+summary(heating_data$Occ)
+```
+
+
+
+One filter less than above
+
+```{r}
+filter(heating_data_rooms, T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+  stat_summary(aes(y = T, colour = "T"), fun = "mean", geom = "line") +
+  stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+  ylab("Temperature") +
+  xlab("Date") +
+  labs(title = "Mean T and Td over all rooms per point in time Hotel Kurpark") +
+  scale_color_manual("Legend", values = c("T" = "red", "Td" = "blue"))
+```
+
+Check plot: aggregate: Mean Temperature per point in time
+
+```{r}
+
+#aggregate(heating_data_rooms$T, by = list(heating_data_rooms$Zeit), FUN = "mean")
+#aggregate(heating_data_rooms$Td, by = list(heating_data_rooms$Zeit), FUN = "mean")
+
+```
+
+
+Create new column that calculates delta in temperature
+```{r}
+heating_data_rooms$TempDelta <- heating_data_rooms$T - heating_data_rooms$Td
+```
+
+Delta of T and Td + Mean Val per point in time
+```{r}
+filter(heating_data_rooms, T > 10 & Td > 10) %>%
+  ggplot(aes(x = Zeit)) +
+  stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+  geom_hline(yintercept=0, color = "black", size = 2) +
+  stat_summary(aes(y=Val, colour = "Val"), fun = "mean", geom = "line") +
+  ylab("Temperature-Delta") +
+  xlab("Date") +
+  labs(title = "Mean Delta of T and Td (T-Td) over all rooms per point in time Hotel Kurpark") +
+  scale_color_manual("Legend", values = c("Delta T and Td" = "blue", "Val" = "green"))
+```
+
+
+Delta of T and Td + Mean Val per point in time, just Zi 01
+IDEA: Add external temperate to explain spikes!
+
+```{r}
+filter(heating_data_rooms, Room == "Zi36") %>%
+  filter(month == 11) %>%
+    ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y = Val, colour = "Val"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=T, colour = "T"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=exttemp, colour = "ext. Temp"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 1) +
+    ylab("Temperature-Delta") +
+    xlab("Date") +
+    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("T" = "blue", "ext. Temp" = "green", "Val" = "red", "Td" = "purple"))
+```
+
+New plot
+```{r}
+filter(heating_data_rooms, Room == "Zi36") %>%
+  filter(month == 11) %>%
+    ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y=Td, colour = "Td"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=exttemp, colour = "ext. Temp"), fun = "mean", geom = "line") +
+    stat_summary(aes(y=Win, colour = "Win"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 1) +
+    ylab("Temperature-Delta") +
+    xlab("Date") +
+    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("Td" = "blue", "ext. Temp" = "green", "Win" = "red"))
+```
+
+
+
+
+Adding external temperature from DWD (just for data exploration, not part of data peparation)
+```{r}
+heating_data_rooms$Zeithour <- substr(heating_data_rooms$Zeit, 0, 13)
+heating_data_rooms$Zeithour <- fastPOSIXct(heating_data_rooms$Zeithour, required.components = 4)
+
+#Join with heating data
+heating_data_rooms <- left_join(heating_data_rooms, y = clim, by = "Zeithour")
+
+heating_data_rooms$exttemp <- heating_data_rooms$TT_TU.Lufttemperatur
+
+```
+
+
+
+Delta of T and Td per point in time, just Zi 01
+
+```{r}
+filter(heating_data_rooms, Room == "Zi36") %>%
+  filter(month == 11) %>%
+  ggplot(aes(x = Zeit)) +
+    stat_summary(aes(y = TempDelta, colour = "Delta T and Td"), fun = "mean", geom = "line") +
+    geom_hline(yintercept=0, color = "black", size = 2) +
+    ylab("Temperature-Delta") +
+    xlab("Date") +
+    labs(title = "Mean Delta of T and Td (T-Td) in Zi 01 per point in time Hotel Kurpark") +
+    scale_color_manual("Legend", values = c("Delta T and Td" = "blue"))
+```
+
+Aggregation for exploration
+
+```{r}
+df2 <- heating_data_rooms %>%
+  group_by(Zeit, Room) %>%
+  summarise_at(c("TempDelta", "Val"), mean)
+
+#Correlation of T and Val per Room (mean over time)
+df2_cor <- df2 %>%
+  group_by(Room) %>%
+  summarise(r = cor(TempDelta, Val))
+
+df2_cor
+```
+
+Moddeling with heating_widemax_TFX-dataset
+
+```{r}
+heating_widemax_TFX <- HotelamKurpark_2.HJ2020_heating_widemax_TFX
+
+#summary(heating_widemax_TFX)
+heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
+
+#Plot Kessel_Leistung over time
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Kessel_Leistung)) +
+         geom_line()
+```
+
+Plot all.Build over time --> = Temperature??
+
+```{r}
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Text.all.Build)) +
+  geom_line()
+```
+
+Plot Gesamt_Leistung over time
+
+```{r}
+heating_widemax_TFX$Gesamt <- heating_widemax_TFX$Kessel_Leistung + heating_widemax_TFX$BHKW_Leistung
+heating_widemax_TFX <- subset(heating_widemax_TFX, select = -c(Kessel_Leistung, BHKW_Leistung))
+
+ggplot(data = heating_widemax_TFX, aes(x = Zeit, y = Gesamt)) +
+        geom_line()
+plot(heating_widemax_TFX$Gesamt)
+```
+
+subset only containing occupancy data
+
+```{r}
+
+heating_widemax_TFX_Occ <- heating_widemax_TFX[, grepl("Occ", names(heating_widemax_TFX))]
+heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, as.factor)
+
+#remove "general" rooms since they are assumed to have to influence in change in temp
+# -> basis that never changes
+# remove columns with nas --> IDEA: can this be done automatically
+
+heating_widemax_TFX_Occ$Occ.Build.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGRhoenI.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGRhoenII.all <-  NULL
+heating_widemax_TFX_Occ$Occ.TGRhoenIII.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGVogelsberg.all <- NULL
+heating_widemax_TFX_Occ$Occ.Zi18.all <- NULL
+heating_widemax_TFX_Occ$Occ.Zi9A.all <- NULL
+heating_widemax_TFX_Occ$Occ.TGVogelsberg.all <- NULL
+
+#subtract 1 from each value in df1 since true = 2 and false = 1
+heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, as.integer)
+subtract1 <- function(x){
+  return(x-1)
+}
+heating_widemax_TFX_Occ[] <- lapply(heating_widemax_TFX_Occ, subtract1)
+heating_widemax_TFX_Occ <- cbind(heating_widemax_TFX_Occ, heating_widemax_TFX$Zeit)
+summary(heating_widemax_TFX_Occ)
+```
+
+Plot Auslastung over time
+
+```{r}
+heating_widemax_TFX_Occ$AuslastungSum <- rowSums(heating_widemax_TFX_Occ[,0:35])
+ggplot(data = heating_widemax_TFX_Occ, aes(x = heating_widemax_TFX$Zeit, y = AuslastungSum)) +
+  geom_line()
+```
+
+Plot Auslastungsquote over time
+```{r}
+#Quote
+heating_widemax_TFX_Occ$Auslastungsquote <- heating_widemax_TFX_Occ$AuslastungSum/35
+ggplot(data = heating_widemax_TFX_Occ, aes(x = heating_widemax_TFX$Zeit, y = Auslastungsquote)) +
+  geom_line()
+```
+
+```{r}
+heating_widemax_TFX_Occ$Date <- fastDate(substr(heating_widemax_TFX_Occ$`heating_widemax_TFX$Zeit`, 0, 10))
+heating_widemax_TFX_Occ$weekday <- as.factor(weekdays(heating_widemax_TFX_Occ$Date))
+heating_widemax_TFX_Occ[heating_widemax_TFX_Occ$weekday == "Samstag" | heating_widemax_TFX_Occ$weekday ==  "Sonntag", "weekend"] <- 1
+heating_widemax_TFX_Occ[heating_widemax_TFX_Occ$weekday == "Montag" | heating_widemax_TFX_Occ$weekday ==  "Dienstag" | heating_widemax_TFX_Occ$weekday ==  "Mittwoch" | 
+                          heating_widemax_TFX_Occ$weekday ==  "Donnerstag" | heating_widemax_TFX_Occ$weekday ==  "Freitag", "weekend"] <- 0
+
+heating_widemax_TFX_Occ$weekend <- as.integer(heating_widemax_TFX_Occ$weekend)
+cor(heating_widemax_TFX_Occ$Auslastungsquote, heating_widemax_TFX_Occ$weekend)
+```
+
+BarChart with mean Auslastungsquote per Weekday
+
+```{r}
+meanAuslastungsquote <- aggregate(heating_widemax_TFX_Occ$Auslastungsquote, list(heating_widemax_TFX_Occ$weekday), mean)
+ggplot(meanAuslastungsquote, aes(Group.1, x)) +
+  geom_bar(stat = "identity")
+```
+
+Boxplot with mean Auslastungsquote per Weekday
+
+```{r}
+ggplot(heating_widemax_TFX_Occ, aes(x = factor(weekday), y = Auslastungsquote)) + 
+  geom_boxplot()
+```
+
+Add TFX-energy usage data to subset
+
+```{r}
+
+heating_widemax_TFX_Occ <- cbind(heating_widemax_TFX_Occ, heating_widemax_TFX$LeistungGesamt)
+colnames(heating_widemax_TFX_Occ)[which(names(heating_widemax_TFX_Occ) == "heating_widemax_TFX$LeistungGesamt")] <- "LeistungGesamt"
+colnames(heating_widemax_TFX_Occ)[which(names(heating_widemax_TFX_Occ) == "heating_widemax_TFX$Zeit")] <- "Zeit"
+
+heating_widemax_TFX_Occ$month <- as.factor(month(heating_widemax_TFX_Occ$Zeit))
+heating_widemax_TFX_Occ$week <- as.factor(week(heating_widemax_TFX_Occ$Zeit))
+
+ggplot(heating_widemax_TFX_Occ, aes(x = Zeit, y = LeistungGesamt)) +
+  geom_line()
+```
+
+Plot mean Leistung per week (attention: week 1 is following year)
+Remark: 2nd axis for mean Auslastungsquote, AQ is still plotted in 1st axis 
+--> *100 and /100 to make impression of fit to 2nd axis
+
+```{r}
+heating_widemax_TFX_Occ %>%
+  group_by(week) %>%
+    summarise(mean_Leistung_week = mean(LeistungGesamt), meanAuslastungWeek = mean(Auslastungsquote)) %>%
+      ggplot() + 
+        geom_bar(aes(x = week, y = mean_Leistung_week), stat = "identity", fill = "grey") + 
+        labs(title = "Mean Leistung and Auslastungsquote per week, 2. HJ 2020, Hotel Kurpark") +
+        geom_line(aes(x = week, y = meanAuslastungWeek*100), group = 1, color = "black", size = 1)  +
+        scale_y_continuous(name = "Mean Leistung per Week", 
+                           sec.axis = sec_axis(~. /100, name = "Mean Auslastungsquote per week"))
+```
+
+CHECK!!! mean Auslastungsquote?
+
+```{r}
+heating_widemax_TFX_Occ %>%
+  filter(month == "11") %>%
+    ggplot() + 
+    geom_bar(aes(x = Date, y = LeistungGesamt), stat = "identity", fill = "grey") + 
+    labs(title = "Sum Leistung and Auslastungsquote, 2. HJ 2020, Hotel Kurpark") +
+    geom_line(aes(x = Date, y = Auslastungsquote*6000), group = 1, color = "black", size = 1)  +
+    scale_y_continuous(name = "Summe Leistung", 
+                       sec.axis = sec_axis(~. /6000, name = "Auslastungsquote"))
+
+```
+
+
+# 4 - Modelling
+
+BOOTCAMP: MODELLING
+
+## 4.1 - Linear Model
+
+Linear model on November data set
+
+```{r}
+
+wide_nov <- wide_data_Nov2020
+
+
+```
+
+```{r}
+
+wide_nov <- wide_nov %>%
+  mutate_if(is.character, as.factor)
+
+```
+
+
+```{r}
+wide_nov$X.1 <- NULL
+wide_nov$HotelID.x <- NULL
+wide_nov$Kessel_Leistung <- NULL
+wide_nov$BHKW_Leistung <- NULL
+```
+
+
+```{r}
+nas <- sapply(wide_nov, function(x) sum(is.na(x)))
+wide_nov[nas == 2880] <- NULL
+```
+
+
+```{r}
+not_unique <- function(wide_nov) length(unique(wide_nov)) > 1
+
+wide_nov2 <- wide_nov %>% 
+  select_if(not_unique)
+```
+
+```{r}
+
+wide_nov2$X <- NULL
+wide_nov2$Date <- NULL
+wide_nov2$Time <- NULL
+wide_nov2$X.1 <- NULL
+
+wide_nov2$BHKW_Leistung <- NULL
+wide_nov2$Kessel_Leistung <- NULL
+
+```
+
+```{r}
+wide_nov2 <- wide_nov2 %>%
+  mutate_if(is.character, as.factor)
+
+write.csv(wide_nov2, "C:/Users/chris/Downloads/wide_nov2.csv")
+```
+
+```{r}
+
+summary(wide_nov2$Td.Zi21.Bad)
+
+```
+
+
+```{r}
+
+lm1 <- lm(LeistungGesamt ~ ., data = wide_nov2)
+summary(lm1)
+
+
+```
+
+## 4.2 - Elastic net: not final!
+```{r}
+
+# Installing the package
+#install.packages("dplyr")
+
+# Loading package
+#library(dplyr)
+
+# Installing Packages
+#install.packages("dplyr")
+#install.packages("glmnet")
+#install.packages("ggplot2")
+#install.packages("caret")
+
+#library(dplyr)
+#library(glmnet)
+#library(ggplot2)
+#library(caret)
+
+# X and Y datasets
+#X <- wide_nov2 %>%
+ # select(LeistungGesamt) %>%
+ # scale(center = TRUE, scale = FALSE) %>%
+ # as.matrix()
+#Y <- wide_nov2 %>%
+ # select(-LeistungGesamt) %>%
+ # as.matrix()
+
+# Model Building : Elastic Net Regression
+#control <- trainControl(method = "repeatedcv",
+                     #   number = 5,
+                     #   repeats = 5,
+                     #   search = "random",
+                      #  verboseIter = TRUE)
+
+# Training ELastic Net Regression model
+#elastic_model <- train(LeistungGesamt ~ .,
+                 #      data = cbind(X, Y),
+                 #      method = "glmnet",
+                 #      preProcess = c("center", "scale"),
+                  #     tuneLength = 25,
+                 #      trControl = control)
+
+#elastic_model
+
+# Model Prediction
+#x_hat_pre <- predict(elastic_model, Y)
+#x_hat_pre
+
+# Multiple R-squared
+#rsq <- cor(X, x_hat_pre)^2
+#rsq
+
+# Plot
+#plot(elastic_model, main = "Elastic Net Regression")
+
+
+```
+
+## 4.3 - Lasso  
+
+True/False -> 0/1
+```{r}
+
+cols <- sapply(wide_nov2, is.logical)
+wide_nov3 <- wide_nov2
+wide_nov3[,cols] <- lapply(wide_nov2[,cols], as.numeric)
+
+```
+
+Data types
+```{r}
+
+wide_nov3 <- wide_nov3 %>%
+  mutate_if(is.factor, as.numeric)
+
+```
+
+Split into dependent and independent variables (x, y) and run Lasso
+
+```{r}
+
+y <- wide_nov3$LeistungGesamt
+x <- wide_nov3 %>%
+  select(-LeistungGesamt) %>%
+  as.matrix()
+
+library(glmnet)
+cv_model <- cv.glmnet(x, y, alpha = 1)
+best_lambda <-cv_model$lambda.min
+best_lambda
+
+plot(cv_model)
+
+lasso_model <- glmnet(x, y, alpha = 1, lambda = best_lambda)
+coef(lasso_model)
+
+```
+
+Open point as NEXT STEP: Create train and test set to see model performance
+
+Predicting with lasso an train (!) data
+
+```{r}
+
+lasso_pred <- predict(lasso_model, x)
+
+lasso_result <- as.data.frame(cbind(wide_nov3$LeistungGesamt, lasso_pred))
+plot(lasso_result$V1, lasso_result$s0)
+
+```
+
+```{r}
+
+library(Metrics)
+rmse(wide_nov3$LeistungGesamt, lasso_pred)
+
+```
+
+
+
+Fabians Area
+
+
+## 4.4 - Regression Trees
+
+Niclas Area
+
+
+-- Added to functions --
+```{r}
+#Heating_Data_Nov2020_Num <- Heating_Data_Nov2020 
+#Heating_Data_Nov2020_Num $Occ <- as.numeric(Heating_Data_Nov2020_Num $Occ)
+#Heating_Data_Nov2020_Num $Win <- as.numeric(Heating_Data_Nov2020_Num $Win)
+
+## 0 is NA 1 is not occupied 2 is occupied
+## 0 is NA 1 is no open window detected 2 is open window detected
+```
+
+
+```{r}
+# Aggregate the Num Dataset.
+#hd_Nov_2020_Agg <- Heating_Data_Nov2020_Num  %>% group_by(Date,Time,Room) %>% summarise(ClIn = median(ClIn, na.rm = TRUE), Occ = sum(Occ, na.rm = TRUE), T = mean(T, na.rm=TRUE), Td = mean(Td, na.rm =TRUE), Text = mean(Text, na.rm =TRUE), Val = mean(Val, na.rm =TRUE), Win = sum(Win, na.rm =TRUE))
+
+# Save as CSV
+#getwd()
+#write.csv(write.csv(hd_Nov_2020_Agg, "C:/Users/Niclas Bardo Bayer/Desktop/Unsortierte Dateien/BAMP Daten Analyse/BAMP/Heating_Nov_2020_Agg.csv"))
+```
+
+
+```{r}
+hd_Nov_2020_Agg$Occ <- as.factor(hd_Nov_2020_Agg$Occ)
+summary(hd_Nov_2020_Agg)
+
+```
+
+
+```{r}
+install.packages("esquisse")
+library(esquisse)
+esquisser(Heating_Nov_2020_Agg)
+```
+
+```{r}
+Heating_Nov_2020_Agg$Date <- as.Date(Heating_Nov_2020_Agg$Date)
+```
+
+```{r}
+table(Heating_Nov_2020_Agg$Room, Heating_Nov_2020_Agg$Occ)
+```
+
+```{r}
+#Data Quality of the Heating Data Set
+
+library(dlookr)
+HotelamKurpark_2.HJ2020_heating %>%
+  diagnose_web_report(subtitle = "HotelamKurpark_2.HJ2020_heating", output_dir = "./",output_file = "HotelamKurpark_2.HJ2020_heating.html", theme = "blue")
+```
+
+```{r}
+HotelamKurpark_2_HJ2020_heating_widemax_TFX <- HotelamKurpark_2_HJ2020_heating_widemax_TFX[,-c(1)]
+```
+
+```{r}
+wide_data_Nov2020 %>% mutate_if(is.character,as.factor)
+summary(wide_data_Nov2020)
+```
+
+
+
+```{r}
+wide_data_Nov2020 %>%
+  diagnose_web_report(subtitle = "wide_data_Nov2020", output_dir = "./",output_file = "wide_data_Nov2020.html", theme = "blue")
+
+
+
+```
+
+
+
+Use of simple Regression Tree for Prediction of the Energy Consumption
+
+```{r}
+library(rsample)     # data splitting 
+library(dplyr)       # data wrangling
+library(rpart)       # performing regression trees
+library(rpart.plot)  # plotting regression trees
+library(ipred)       # bagging
+library(caret)       # bagging
+#install.packages("tree")
+library(tree)
+```
+
+```{r}
+set.seed(42)
+alpha <- 0.8 #Percentage of the training set
+inTrain   <- sample(1:nrow(wide_nov2), alpha * nrow(wide_nov2))
+train.set <- wide_nov2[inTrain,]
+test.set  <- wide_nov2[-inTrain,]
+```
+
+```{r}
+tree_m1 <- rpart(LeistungGesamt~.,train.set, method = "anova")
+rpart.plot(tree_m1)
+```
+
+
+```{r}
+## See the accuracy of the model
+test_pred_mytree <- predict(tree_m1, test.set)
+test_pred_mytree
+table(test_pred_mytree)
+```
+
+```{r}
+## Measure the MSE of the unpruned tree
+MSEup = (mean((test_pred_mytree-test.set$LeistungGesamt)^2))
+MSEup
+## The Mean Squared Error is 626.0145 for this model
+## This is a very high error so we need to improve the model. 
+
+## As in this model the window detection seems to have a high influence
+## we remove it as it is a binary factor that is based on an algorithm.
+```
+```{r}
+mean(test.set$LeistungGesamt)
+```
+```{r}
+boxplot(test.set$LeistungGesamt)
+summary(wide_nov2$LeistungGesamt)
+```
+
+To scale the model accross multiple hotels it might make sense to assign the consumption into buckets. 
+
+```{r}
+wide_nov2$LeistungsKlasse <- wide_nov2 %>% mutate(new_bin = cut(LeistungGesamt, breaks=c(0, 67, 92, 111)))
+
+```
+
+```{r}
+Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung <-NULL
+Heating_data_Nov2020_agg_widemax_TFX$Kessel_Leistung <- NULL
+Heating_data_Nov2020_agg_widemax_TFX$BHKW_Leistung <- NULL
+Heating_data_Nov2020_agg_widemax_TFX$datetime <- NULL
+Heating_data_Nov2020_agg_widemax_TFX$Zeit <- NULL
+Heating_data_Nov2020_agg_widemax_TFX$...1 <- NULL
+Heating_data_Nov2020_agg_widemax_TFX$Date.y <- NULL
+Heating_data_Nov2020_agg_widemax_TFX$Time.y <- NULL
+```
+
+```{r}
+Heating_data_Nov2020_agg_widemax_TFX_addData$datetime <- NULL
+Heating_data_Nov2020_agg_widemax_TFX_addData$Time.y <- NULL
+Heating_data_Nov2020_agg_widemax_TFX_addData$Date <- NULL
+Heating_data_Nov2020_agg_widemax_TFX_addData$Zeithour <- NULL
+Heating_data_Nov2020_agg_widemax_TFX_addData$Zeit <- NULL
+Heating_data_Nov2020_agg_widemax_TFX_addData$Kessel_Leistung <- NULL
+Heating_data_Nov2020_agg_widemax_TFX_addData$BHKW_Leistung <- NULL
+Heating_data_Nov2020_agg_widemax_TFX_addData$date <- NULL
+Tree_DS <- Heating_data_Nov2020_agg_widemax_TFX_addData
+summary(Tree_DS)
+```
+
+
+```{r}
+set.seed(42)
+alpha <- 0.8 #Percentage of the training set
+inTrain   <- sample(1:nrow(Tree_DS), alpha * nrow(Tree_DS))
+train.set <- Tree_DS[inTrain,]
+test.set  <- Tree_DS[-inTrain,]
+tree_m2 <- rpart(LeistungGesamt~.,train.set, method = "anova")
+rpart.plot(tree_m2)
+```
+```{r}
+## See the accuracy of the model
+test_pred_mytree <- predict(tree_m2, test.set)
+test_pred_mytree
+table(test_pred_mytree)
+
+## Measure the MSE of the unpruned tree
+RSQE = sqrt(mean((test_pred_mytree-test.set$LeistungGesamt)^2))
+RSQE
+```
+
+
+
+
+## 4.5 - Random Forest
+
+```{r}
+library(randomForest)
+library(MASS)
+install.packages("MLmetrics")
+library(MLmetrics)
+library(ipred)
+library(tree)
+```
+
+```{r}
+rmse_reg <- function(model_obj, testing = NULL, target = NULL) {
+  #Calculates rmse for a regression decision tree
+  #Arguments:
+  # testing - test data set
+  # target  - target variable (length 1 character vector)
+  yhat <- predict(model_obj, newdata = testing)
+  actual <- testing[[target]]
+  sqrt(mean((yhat-actual)^2))
+}
+
+```
+
+```{r}
+set.seed(1)
+Random_Forest_1 <- randomForest(LeistungGesamt ~ ., data = Tree_DS, mtry = ncol(train.set)-1, importance = TRUE)
+rmse_reg(Random_Forest_1, train.set, "medv") # This is a massive improvement over the previous models (classification, prunning, bagging...)
+
+plot(Random_Forest_1,col = "blue", type = "l")
+```
+```{r}
+randomForest::varImpPlot(Random_Forest_1)[,1]
+```
+```{r}
+rmse_reg(Random_Forest_1, test.set, "LeistungGesamt")
+```
+```{r}
+# See if we can plot a part of the Random Forest as a tree. 
+install.packages("reprtree")
+library(reprtree)
+reprtree:::plot.getTree(Random_Forest_1)
+```
+
+Add new variables (From here one only tested stuff to see if we could get an index for the occupancy and also added the Consumption Cluster)
+
+```{r}
+Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung <- Heating_data_Nov2020_agg_widemax_TFX$BHKW_Leistung + Heating_data_Nov2020_agg_widemax_TFX$Kessel_Leistung
+summary(Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung)
+
+```
+```{r}
+Heating_data_Nov2020_agg_widemax_TFX$Consumption_Cluster <- cut(Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung, 3, labels=c("Low", "Medium", 'High'))
+```
+
+```{r}
+Heating_data_Nov2020_agg_widemax_TFX %>% select(starts_with("O")) table(Heating_data_Nov2020_agg_widemax_TFX$Consumption_Cluster)
+```
+```{r}
+Occupancy_Matrix <- Heating_data_Nov2020_agg_widemax_TFX %>% select(starts_with("Occ"))
+length(Occupancy_Matrix)
+```
+```{r}
+df_dummy <- for i in Occupancy_Matrix {
+  if 
+}
+```
+
+# 5 - Modelling with aggregated data set
 
 1) Data cleansing and reduce number of columns
 
@@ -1498,256 +1686,8 @@ rmse(test.set$LeistungGesamt, lasso_pred)
 
 
 
-Fabians Area
+# 6 - End
 
-
-
-Niclas Area
-
-
--- Added to functions --
-```{r}
-#Heating_Data_Nov2020_Num <- Heating_Data_Nov2020 
-#Heating_Data_Nov2020_Num $Occ <- as.numeric(Heating_Data_Nov2020_Num $Occ)
-#Heating_Data_Nov2020_Num $Win <- as.numeric(Heating_Data_Nov2020_Num $Win)
-
-## 0 is NA 1 is not occupied 2 is occupied
-## 0 is NA 1 is no open window detected 2 is open window detected
-```
-
-
-```{r}
-# Aggregate the Num Dataset.
-#hd_Nov_2020_Agg <- Heating_Data_Nov2020_Num  %>% group_by(Date,Time,Room) %>% summarise(ClIn = median(ClIn, na.rm = TRUE), Occ = sum(Occ, na.rm = TRUE), T = mean(T, na.rm=TRUE), Td = mean(Td, na.rm =TRUE), Text = mean(Text, na.rm =TRUE), Val = mean(Val, na.rm =TRUE), Win = sum(Win, na.rm =TRUE))
-
-# Save as CSV
-#getwd()
-#write.csv(write.csv(hd_Nov_2020_Agg, "C:/Users/Niclas Bardo Bayer/Desktop/Unsortierte Dateien/BAMP Daten Analyse/BAMP/Heating_Nov_2020_Agg.csv"))
-```
-
-
-```{r}
-hd_Nov_2020_Agg$Occ <- as.factor(hd_Nov_2020_Agg$Occ)
-summary(hd_Nov_2020_Agg)
-
-```
-
-
-```{r}
-install.packages("esquisse")
-library(esquisse)
-esquisser(Heating_Nov_2020_Agg)
-```
-
-```{r}
-Heating_Nov_2020_Agg$Date <- as.Date(Heating_Nov_2020_Agg$Date)
-```
-
-```{r}
-table(Heating_Nov_2020_Agg$Room, Heating_Nov_2020_Agg$Occ)
-```
-
-```{r}
-#Data Quality of the Heating Data Set
-
-library(dlookr)
-HotelamKurpark_2.HJ2020_heating %>%
-  diagnose_web_report(subtitle = "HotelamKurpark_2.HJ2020_heating", output_dir = "./",output_file = "HotelamKurpark_2.HJ2020_heating.html", theme = "blue")
-```
-
-```{r}
-HotelamKurpark_2_HJ2020_heating_widemax_TFX <- HotelamKurpark_2_HJ2020_heating_widemax_TFX[,-c(1)]
-```
-
-```{r}
-wide_data_Nov2020 %>% mutate_if(is.character,as.factor)
-summary(wide_data_Nov2020)
-```
-
-
-
-```{r}
-wide_data_Nov2020 %>%
-  diagnose_web_report(subtitle = "wide_data_Nov2020", output_dir = "./",output_file = "wide_data_Nov2020.html", theme = "blue")
-
-
-
-```
-## Modeling Regression Trees ##
-
-# Use of simple Regression Tree for Prediction of the Energy Consumption
-
-```{r}
-library(rsample)     # data splitting 
-library(dplyr)       # data wrangling
-library(rpart)       # performing regression trees
-library(rpart.plot)  # plotting regression trees
-library(ipred)       # bagging
-library(caret)       # bagging
-#install.packages("tree")
-library(tree)
-```
-
-```{r}
-set.seed(42)
-alpha <- 0.8 #Percentage of the training set
-inTrain   <- sample(1:nrow(wide_nov2), alpha * nrow(wide_nov2))
-train.set <- wide_nov2[inTrain,]
-test.set  <- wide_nov2[-inTrain,]
-```
-
-```{r}
-tree_m1 <- rpart(LeistungGesamt~.,train.set, method = "anova")
-rpart.plot(tree_m1)
-```
-
-
-```{r}
-## See the accuracy of the model
-test_pred_mytree <- predict(tree_m1, test.set)
-test_pred_mytree
-table(test_pred_mytree)
-```
-
-```{r}
-## Measure the MSE of the unpruned tree
-MSEup = (mean((test_pred_mytree-test.set$LeistungGesamt)^2))
-MSEup
-## The Mean Squared Error is 626.0145 for this model
-## This is a very high error so we need to improve the model. 
-
-## As in this model the window detection seems to have a high influence
-## we remove it as it is a binary factor that is based on an algorithm.
-```
-```{r}
-mean(test.set$LeistungGesamt)
-```
-```{r}
-boxplot(test.set$LeistungGesamt)
-summary(wide_nov2$LeistungGesamt)
-```
-To scale the model accross multiple hotels it might make sense to assign the consumption into buckets. 
-
-```{r}
-wide_nov2$LeistungsKlasse <- wide_nov2 %>% mutate(new_bin = cut(LeistungGesamt, breaks=c(0, 67, 92, 111)))
-
-```
-
-```{r}
-Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung <-NULL
-Heating_data_Nov2020_agg_widemax_TFX$Kessel_Leistung <- NULL
-Heating_data_Nov2020_agg_widemax_TFX$BHKW_Leistung <- NULL
-Heating_data_Nov2020_agg_widemax_TFX$datetime <- NULL
-Heating_data_Nov2020_agg_widemax_TFX$Zeit <- NULL
-Heating_data_Nov2020_agg_widemax_TFX$...1 <- NULL
-Heating_data_Nov2020_agg_widemax_TFX$Date.y <- NULL
-Heating_data_Nov2020_agg_widemax_TFX$Time.y <- NULL
-```
-
-```{r}
-Heating_data_Nov2020_agg_widemax_TFX_addData$datetime <- NULL
-Heating_data_Nov2020_agg_widemax_TFX_addData$Time.y <- NULL
-Heating_data_Nov2020_agg_widemax_TFX_addData$Date <- NULL
-Heating_data_Nov2020_agg_widemax_TFX_addData$Zeithour <- NULL
-Heating_data_Nov2020_agg_widemax_TFX_addData$Zeit <- NULL
-Heating_data_Nov2020_agg_widemax_TFX_addData$Kessel_Leistung <- NULL
-Heating_data_Nov2020_agg_widemax_TFX_addData$BHKW_Leistung <- NULL
-Heating_data_Nov2020_agg_widemax_TFX_addData$date <- NULL
-Tree_DS <- Heating_data_Nov2020_agg_widemax_TFX_addData
-summary(Tree_DS)
-```
-
-
-```{r}
-set.seed(42)
-alpha <- 0.8 #Percentage of the training set
-inTrain   <- sample(1:nrow(Tree_DS), alpha * nrow(Tree_DS))
-train.set <- Tree_DS[inTrain,]
-test.set  <- Tree_DS[-inTrain,]
-tree_m2 <- rpart(LeistungGesamt~.,train.set, method = "anova")
-rpart.plot(tree_m2)
-```
-```{r}
-## See the accuracy of the model
-test_pred_mytree <- predict(tree_m2, test.set)
-test_pred_mytree
-table(test_pred_mytree)
-
-## Measure the MSE of the unpruned tree
-RSQE = sqrt(mean((test_pred_mytree-test.set$LeistungGesamt)^2))
-RSQE
-```
-
-
-
-
-Random Forest
-
-```{r}
-library(randomForest)
-library(MASS)
-install.packages("MLmetrics")
-library(MLmetrics)
-library(ipred)
-library(tree)
-```
-
-```{r}
-rmse_reg <- function(model_obj, testing = NULL, target = NULL) {
-  #Calculates rmse for a regression decision tree
-  #Arguments:
-  # testing - test data set
-  # target  - target variable (length 1 character vector)
-  yhat <- predict(model_obj, newdata = testing)
-  actual <- testing[[target]]
-  sqrt(mean((yhat-actual)^2))
-}
-
-```
-
-```{r}
-set.seed(1)
-Random_Forest_1 <- randomForest(LeistungGesamt ~ ., data = Tree_DS, mtry = ncol(train.set)-1, importance = TRUE)
-rmse_reg(Random_Forest_1, train.set, "medv") # This is a massive improvement over the previous models (classification, prunning, bagging...)
-
-plot(Random_Forest_1,col = "blue", type = "l")
-```
-```{r}
-randomForest::varImpPlot(Random_Forest_1)[,1]
-```
-```{r}
-rmse_reg(Random_Forest_1, test.set, "LeistungGesamt")
-```
-```{r}
-# See if we can plot a part of the Random Forest as a tree. 
-install.packages("reprtree")
-library(reprtree)
-reprtree:::plot.getTree(Random_Forest_1)
-```
-
-## Add new variables (From here one only tested stuff to see if we could get an index for the occupancy and also added the Consumption Cluster)
-
-```{r}
-Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung <- Heating_data_Nov2020_agg_widemax_TFX$BHKW_Leistung + Heating_data_Nov2020_agg_widemax_TFX$Kessel_Leistung
-summary(Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung)
-
-```
-```{r}
-Heating_data_Nov2020_agg_widemax_TFX$Consumption_Cluster <- cut(Heating_data_Nov2020_agg_widemax_TFX$GesamtLeistung, 3, labels=c("Low", "Medium", 'High'))
-```
-
-```{r}
-Heating_data_Nov2020_agg_widemax_TFX %>% select(starts_with("O")) table(Heating_data_Nov2020_agg_widemax_TFX$Consumption_Cluster)
-```
-```{r}
-Occupancy_Matrix <- Heating_data_Nov2020_agg_widemax_TFX %>% select(starts_with("Occ"))
-length(Occupancy_Matrix)
-```
-```{r}
-df_dummy <- for i in Occupancy_Matrix {
-  if 
-}
-```
 
 
 
