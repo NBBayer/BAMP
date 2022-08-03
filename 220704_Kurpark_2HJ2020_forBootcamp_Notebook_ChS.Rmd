@@ -389,11 +389,12 @@ aggregate_room <- function(data_long){
 
 ```
 
-## 1.3 - Feature engineering and add. data
+## 1.3 - Feature engineering and add. data (WIP!)
 
-Function feature engineering: work in progress!
+Function feature engineering
 
 ```{r}
+#Data set needs to be in widemax format, preferably aggregated over Room Type
 
 feature_eng <- function(dataset){
   
@@ -406,83 +407,98 @@ feature_eng <- function(dataset){
   df[df$weekday == "Samstag" | df$weekday ==  "Sonntag", "weekend"] <- 1
   df[df$weekday == "Montag" | df$weekday ==  "Dienstag" | df$weekday ==  "Mittwoch" | 
                             df$weekday ==  "Donnerstag" | df$weekday ==  "Freitag", "weekend"] <- 0
-  
   df$weekend <- as.integer(df$weekend)
-  
   
   ## 2: Occupancy ratio
   
-  #df$OccSum <- rowSums(df[grepl("Occ", names(df))])
-  #df$OccRate <- df$OccSum/sum(grepl("Occ", names(df)))
-  
-  # !! Occupancy ratio always causes error, has not been fixed yet!
-  
-  #summary(df$OccRate)
-  
+  df$OccSum <- rowSums(df[grepl("Occ", names(df))])
+  df$OccRate <- df$OccSum/sum(grepl("Occ", names(df)))
   
   ## 3: Leistung Gesamt
   
-
+  df$Leistung_all <- df$Kessel_Leistung + df$BHKW_Leistung
   
+  # TO BE ADDED: treat NA as 0 when summing up
   
   ## 4: month, week, time of day, season
   
-  #heating_data_rooms$month <- as.factor(month(heating_data_rooms$Zeit))
+  df$month <- as.factor(month(df$Date))
+  df$week <- as.factor(week(df$Date))
   
+  # TO BE ADDED: Time of day, season?
   
-  ## 5: Guest room or common area
+  return(df)
 
 }
 
 ```
 
-Function external data: WIP
+
+Function external data: WIP - does not work yet!!
 
 ```{r}
 
-#Weather data from DWD
+#input: widemax data set, preferably with featrue engineering and already aggregated over Room Tpye
 
-heating_widemax_TFX <- HotelamKurpark_2.HJ2020_heating_widemax
-heating_widemax_TFX$Zeit <- fastPOSIXct(heating_widemax_TFX$Zeit, required.components = 5L)
+external_data <- function(dataset){
+  
+  df <- dataset
+  
+  #1: Weather data from DWD
+  
+  #Get weather data from DWD
+  #ATTENTION: ZIP FILE DOWNLOADED TO WORKING DIRECTORY
+  link <- selectDWD(id = findID(name = "Hersfeld, Bad", exactmatch = FALSE), res="hourly", var="air_temperature", per="h")
+  file <- dataDWD(link, read=FALSE)
+  clim <- readDWD(file, varnames=TRUE)
+  
+  clim$Time.y <- fastPOSIXct(clim$MESS_DATUM, required.components = 6L)
+  df$Time.y <- fastPOSIXct(df$Time.y, required.components = 4)
+  
+  #Join with heating data
+  df_weather <- left_join(df, y = clim, by = "Time.y")
+  
 
-#Get weather data from DWD
-#ATTENTION: ZIP FILE DOWNLOADED TO WORKING DIRECTORY
-link <- selectDWD(id = findID(name = "Hersfeld, Bad", exactmatch = FALSE), res="hourly", var="air_temperature", per="h")
-file <- dataDWD(link, read=FALSE)
-clim <- readDWD(file, varnames=TRUE)
+  #2: Pubblic holidays
 
-clim$Zeithour <- fastPOSIXct(clim$MESS_DATUM, required.components = 6L)
+  #Fetch Feiertage
+  # Change link if different country and/or year required!
+  public_holidays <- jsonlite::fromJSON("https://date.nager.at/api/v2/publicholidays/2020/DE")
+  
+  public_holidays$Date <- public_holidays$date
+  #df_weather$Date <- fastDate(substr(df_weather$Zeit, 0, 10))
+  public_holidays$Date <- fastDate(public_holidays$Date)
+  
+  #Join with heating data
+  df_weather_holiday <- left_join(df_weather, y = public_holidays, by = "Date")
+  #Replace NAs (no Holiday at date) with "kein Feiertag"
+  df_weather_holiday$localName[is.na(heating_widemax_TFX_weather_holiday$localName)] <- "kein Feiertag"
 
-heating_widemax_TFX$Zeithour <- substr(heating_widemax_TFX$Zeit, 0, 13)
-heating_widemax_TFX$Zeithour <- fastPOSIXct(heating_widemax_TFX$Zeithour, required.components = 4)
 
-#Join with heating data
-heating_widemax_TFX_weather <- left_join(heating_widemax_TFX, y = clim, by = "Zeithour")
-ggplot(data = heating_widemax_TFX_weather, aes(x = Zeit, y = TT_TU.Lufttemperatur)) +
-  geom_line()
+# Export to csv?
+  
+}
 
-plot(heating_widemax_TFX_weather$Zeit, heating_widemax_TFX_weather$TT_TU.Lufttemperatur)
+```
 
-# Pubblic holidays
+Check adding add. data
 
-#Fetch Feiertage
-# Change link if different country and/or year required!
-public_holidays <- jsonlite::fromJSON("https://date.nager.at/api/v2/publicholidays/2020/DE")
+```{r}
 
-public_holidays$Date <- public_holidays$date
-heating_widemax_TFX_weather$Date <- fastDate(substr(heating_widemax_TFX_weather$Zeit, 0, 10))
-public_holidays$Date <- fastDate(public_holidays$Date)
-
-#Join with heating data
-heating_widemax_TFX_weather_holiday <- left_join(heating_widemax_TFX_weather, y = public_holidays, by = "Date")
-#Replace NAs (no Holiday at date) with "kein Feiertag"
-heating_widemax_TFX_weather_holiday$localName[is.na(heating_widemax_TFX_weather_holiday$localName)] <- "kein Feiertag"
-
+tst2 <- data.frame(external_data(agg_widemax_TFX))
 
 ```
 
 
-## 1.4 - Backlog
+## 1.4 - Export final data set to csv -> for modelling
+
+Code to be added
+```{r}
+
+```
+
+
+## 1.5 - Backlog and old Code data preparation
 
 Turn Window detection to 1 and 0
 
@@ -725,7 +741,7 @@ write.csv(heating_final, "C:/Users/chris/Downloads/Heating_data_Nov2020_agg_wide
 
 ```
 
-# 3 - Data exploration
+# 2 - Data exploration
 
 DATA EXPLORATION
 
@@ -1087,11 +1103,11 @@ heating_widemax_TFX_Occ %>%
 ```
 
 
-# 4 - Modelling
+# 3 - Modelling
 
 BOOTCAMP: MODELLING
 
-## 4.1 - Linear Model
+## 3.1 - Linear Model
 
 Linear model on November data set
 
@@ -1165,7 +1181,7 @@ summary(lm1)
 
 ```
 
-## 4.2 - Elastic net: not final!
+## 3.2 - Elastic net: not final!
 ```{r}
 
 # Installing the package
@@ -1225,7 +1241,7 @@ summary(lm1)
 
 ```
 
-## 4.3 - Lasso  
+## 3.3 - Lasso  
 
 True/False -> 0/1
 ```{r}
@@ -1290,7 +1306,7 @@ rmse(wide_nov3$LeistungGesamt, lasso_pred)
 Fabians Area
 
 
-## 4.4 - Regression Trees
+## 3.4 - Regression Trees
 
 Niclas Area
 
@@ -1473,7 +1489,7 @@ RSQE
 
 
 
-## 4.5 - Random Forest
+## 3.5 - Random Forest
 
 ```{r}
 library(randomForest)
@@ -1541,7 +1557,7 @@ df_dummy <- for i in Occupancy_Matrix {
 }
 ```
 
-# 5 - Modelling with aggregated data set
+# 4 - Modelling with aggregated data set
 
 1) Data cleansing and reduce number of columns
 
@@ -1686,7 +1702,7 @@ rmse(test.set$LeistungGesamt, lasso_pred)
 
 
 
-# 6 - End
+# 5 - End
 
 
 
